@@ -1,0 +1,22 @@
+backend/src/
+├── config/
+│   └── index.js          # Конфигурация приложения (env переменные)
+├── db/
+│   └── supabase.js       # Supabase клиенты (anon и admin)
+├── services/
+│   ├── yandexAuth.js     # Яндекс OAuth авторизация
+│   ├── videoStorage.js   # Загрузка/удаление видеофайлов
+│   ├── video.js          # CRUD видео, лайки, просмотры
+│   ├── comment.js        # Комментарии (CRUD)
+│   └── user.js           # Пользователи
+├── routes/
+│   ├── auth.js           # Маршруты авторизации
+│   ├── videos.js         # Маршруты видео
+│   ├── comments.js       # Маршруты комментариев
+│   ├── users.js          # Маршруты пользователей
+│   └── config.js         # Маршрут конфигурации
+├── middleware/
+│   ├── upload.js         # Multer настройка
+│   └── errorHandler.js   # Обработка ошибок
+├── utils/                # Утилиты (для будущего использования)
+└── index.js              # Точка входа

@@ -1,0 +1,27 @@
+﻿/* ============================================
+   Модульные стили
+   ============================================ */
+
+/* Глобальные стили и сброс */
+@import './styles/global.css';
+
+/* Layout: Header, Main */
+@import './styles/layout.css';
+
+/* Карта и связанные компоненты */
+@import './styles/map.css';
+
+/* Страница видео */
+@import './styles/videoPage.css';
+
+/* Комментарии */
+@import './styles/comments.css';
+
+/* Live Marker */
+@import './styles/liveMarker.css';
+
+/* Страницы: User, Guide, AddRoute */
+@import './styles/pages.css';
+
+/* Главная страница */
+@import './styles/homePage.css';

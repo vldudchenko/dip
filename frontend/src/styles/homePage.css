@@ -1,0 +1,161 @@
+/* ============================================
+   Главная страница - список маршрутов
+   ============================================ */
+.home-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.home-header {
+  margin-bottom: 2rem;
+}
+
+.home-header h1 {
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.routes-count {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+/* ============================================
+   Сетка маршрутов
+   ============================================ */
+.routes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+/* ============================================
+   Карточка маршрута на главной
+   ============================================ */
+.route-card-main {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.route-card-main:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.route-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.route-card-title {
+  margin: 0;
+  color: #333;
+  font-size: 1.25rem;
+  flex: 1;
+}
+
+.route-card-difficulty {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-left: 0.75rem;
+}
+
+.route-card-description {
+  color: #666;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.route-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.route-card-detail {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.route-card-detail .label {
+  color: #666;
+}
+
+.route-card-detail .value {
+  color: #333;
+  font-weight: 500;
+}
+
+.route-card-guide {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid #e5e5e5;
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.route-card-guide .label {
+  color: #666;
+}
+
+.guide-link {
+  color: #7c3aed;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.guide-link:hover {
+  color: #5b21b6;
+}
+
+.route-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-view-route {
+  background: #7c3aed;
+  color: white;
+  border: none;
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.btn-view-route:hover {
+  background: #5b21b6;
+}
+
+/* ============================================
+   Нет маршрутов
+   ============================================ */
+.no-routes {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  color: #666;
+  font-size: 1.1rem;
+}
