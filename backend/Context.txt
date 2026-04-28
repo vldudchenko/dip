@@ -1,0 +1,282 @@
+### Installing react-native-yamap with npm
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Command to install the `react-native-yamap` library and save it to the project's dependencies using the npm package manager. The `--save` flag is standard for older npm versions or explicit saving.
+
+```Shell
+npm i react-native-yamap --save
+```
+
+--------------------------------
+
+### Installing react-native-yamap with Yarn
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Command to add the `react-native-yamap` library as a project dependency using the Yarn package manager.
+
+```Shell
+yarn add react-native-yamap
+```
+
+--------------------------------
+
+### Rendering Clustered Markers with ClusteredYamap Component (JSX)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Provides an example of using the `ClusteredYamap` component to display a large number of markers that automatically cluster at certain zoom levels. Shows how to import the component, set cluster properties like `clusterColor`, provide an array of `clusteredMarkers`, and use `renderMarker` to customize the appearance of individual markers.
+
+```JSX
+import React from 'react';
+import { ClusteredYamap } from '../../react-native-yamap/src';
+
+const Map = () => {
+  return (
+    <ClusteredYamap
+      clusterColor="red"
+      clusteredMarkers={[
+        {
+          point: {
+            lat: 56.754215,
+            lon: 38.622504,
+          },
+          data: {},
+        },
+        {
+          point: {
+            lat: 56.754215,
+            lon: 38.222504,
+          },
+          data: {},
+        },
+      ]}
+      renderMarker={(info, index) => (
+        <Marker
+          key={index}
+          point={info.point}
+        />
+      )}
+      style={{flex: 1}}
+    />
+  );
+};
+```
+
+--------------------------------
+
+### Changing YaMap Language in React Native (JS)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Provides JavaScript examples using the `YaMap` module to get, set, and reset the locale (language) for the Yandex Maps, noting that these operations return Promises. Includes examples for getting the current locale, setting a new locale ('en_US'), and resetting to the system default.
+
+```Javascript
+import YaMap from 'react-native-yamap';
+
+const currentLocale = await YaMap.getLocale();
+YaMap.setLocale('en_US');  // 'ru_RU' или другие
+YaMap.resetLocale();
+```
+
+--------------------------------
+
+### Performing Geocoding with react-native-yamap Search Module (TypeScript)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Demonstrates how to use the Search module for geocoding, converting between geographical coordinates and human-readable addresses. Shows `Search.geocodePoint` to get an address from coordinates and `Search.geocodeAddress` to get coordinates from a formatted address string.
+
+```TypeScript
+import { Search } from 'react-native-yamap';
+
+const address = Search.geocodePoint({lat: 54, lon: 53});
+
+// {"Components": [{"kind": "4", "name": "Малиновский сельсовет"}, {"kind": "4", "name": "Белебеевский район"}, {"kind": "3", "name": "Республика Башкортостан"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "3", "name": "Приволжский федеральный округ"}, {"kind": "1", "name": "Россия"}], "country_code": "RU", "formatted": "Россия, Республика Башкортостан, Белебеевский район, Малиновский сельсовет", "uri": "ymapsbm1://geo?data=IgoNAQBYQhUBAFhC"}
+
+const point = Search.geocodeAddress(address.formatted);
+
+// возвращает координаты по адресу {"lat": 53.999187242158015, "lon": 54.089440735780194}
+
+```
+
+--------------------------------
+
+### Initializing Yandex MapKit in iOS AppDelegate via Expo Config Plugin (TypeScript)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Provides an Expo config plugin example to automatically modify the iOS `AppDelegate.mm` file during `expo prebuild`. It adds the necessary import for `YMKMapKitFactory.h` and injects the `YMKMapKit` initialization calls (`setApiKey`, `setLocale`, `mapKit()`) into the application launch method, which is required for react-native-yamap to function correctly on iOS.
+
+```TypeScript
+import { type ExpoConfig } from "@expo/config-types";
+import { withAppDelegate, type ConfigPlugin } from "expo/config-plugins";
+
+const config: ExpoConfig = {
+  name: "Example",
+  slug: "example-app",
+  version: "1.0.0",
+  extra: {
+    mapKitApiKey: "bla-bla-bla",
+  },
+};
+
+const withYandexMaps: ConfigPlugin = (config) => {
+  return withAppDelegate(config, async (config) => {
+    const appDelegate = config.modResults;
+
+    // Add import
+    if (!appDelegate.contents.includes("#import <YandexMapsMobile/YMKMapKitFactory.h>")) {
+      // Replace the first line with the intercom import
+      appDelegate.contents = appDelegate.contents.replace(
+        /#import "AppDelegate.h"/g,
+        `#import "AppDelegate.h"\n#import <YandexMapsMobile/YMKMapKitFactory.h>`
+      );
+    }
+
+    const mapKitMethodInvocations = [
+      `[YMKMapKit setApiKey:@"${config.extra?.mapKitApiKey}"];`,
+      `[YMKMapKit setLocale:@"ru_RU"];`,
+      `[YMKMapKit mapKit];`,
+    ]
+      .map((line) => `\t${line}`)
+      .join("\n");
+
+    // Add invocation
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    if (!appDelegate.contents.includes(mapKitMethodInvocations)) {
+      appDelegate.contents = appDelegate.contents.replace(
+        /\s+return YES;/g,
+        `\n\n${mapKitMethodInvocations}\n\n\treturn YES;`
+      );
+    }
+
+    return config;
+  });
+};
+
+export default withYandexMaps(config);
+```
+
+--------------------------------
+
+### Initializing YaMap in React Native (JS)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Demonstrates how to import the `YaMap` module and initialize the Yandex Maps SDK with an API key in a React Native JavaScript/TypeScript file, typically in the application's entry point like App.js.
+
+```Javascript
+import YaMap from 'react-native-yamap';
+
+YaMap.init('API_KEY');
+```
+
+--------------------------------
+
+### Initializing Yandex MapKit in iOS AppDelegate
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Shows the required Objective-C code snippet to initialize the Yandex MapKit SDK within the `application:didFinishLaunchingWithOptions:` method of the iOS AppDelegate, including setting the locale and API key.
+
+```Objective-C
+#import <YandexMapsMobile/YMKMapKitFactory.h>
+
+...
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+{
+  ...
+
+  [YMKMapKit setLocale:@"ru_RU"];
+  [YMKMapKit setApiKey:@"API_KEY"];
+
+  return YES;
+}
+```
+
+--------------------------------
+
+### Using the YaMap Component in React Native (JSX)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Demonstrates how to import and use the `YaMap` component within a React Native functional component. It shows how to set properties like the user location icon and the initial map region (latitude, longitude, zoom, azimuth, tilt) and apply basic styling.
+
+```JSX
+import React from 'react';
+import YaMap from 'react-native-yamap';
+
+const Map = () => {
+  return (
+    <YaMap
+      userLocationIcon={{ uri: 'https://www.clipartmax.com/png/middle/180-1801760_pin-png.png' }}
+      initialRegion={{
+        lat: 50,
+        lon: 50,
+        zoom: 10,
+        azimuth: 80,
+        tilt: 100
+      }}
+      style={{ flex: 1 }}
+    />
+  );
+};
+```
+
+--------------------------------
+
+### Performing Geographic Searches with react-native-yamap Search Module (TypeScript)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Illustrates how to use different methods of the Search module to perform geographic lookups. Demonstrates `Search.searchText` for text-based search within a geographic figure, `Search.searchPoint` for coordinate-based search with a zoom level, and `Search.resolveURI`/`searchByURI` for queries based on Yandex Maps URIs. Requires the `Search` module from `react-native-yamap`.
+
+```TypeScript
+import { Search } from 'react-native-yamap';
+
+const find = async (query: string, options?: SuggestOptions) => {
+  // можно использовать Point, BoundingBox, Polyline и Polygon (4 точки, без innerRings)
+  const search = await Search.searchText(
+    'Москва',
+    { type: GeoFigureType.POINT, value: {lat: 54, lon: 53}},
+    { disableSpellingCorrection: true, geometry: true },
+  );
+
+  // второй параметр это зум, определяющий на сколько малые объекты искать
+  const searchByPoint = await Search.searchPoint({lat: 54, lon: 53}, 10, {
+    disableSpellingCorrection: true,
+    geometry: true,
+  });
+
+  const resolveURI = await Search.resolveURI("ymapsbm1://geo?data=IgoNAQBYQhUBAFhC", {
+    disableSpellingCorrection: true,
+    geometry: true,
+  });
+
+  const searchByURI = await Search.searchByURI("ymapsbm1://geo?data=IgoNAQBYQhUBAFhC", {
+    disableSpellingCorrection: true,
+    geometry: true,
+  });
+  
+//   {"Components": [{"kind": "4", "name": "Малиновский сельсовет"}, {"kind": "4", "name": "Белебеевский район"}, {"kind": "3", "name": "Республика Башкортостан"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "19", "name": "Понтийско-Каспийская степь"}, {"kind": "3", "name": "Приволжский федеральный округ"}, {"kind": "1", "name": "Россия"}], "country_code": "RU", "formatted": "Россия, Республика Башкортостан, Белебеевский район, Малиновский сельсовет", "uri": "ymapsbm1://geo?data=IgoNAQBYQhUBAFhC"}
+  
+}
+```
+
+--------------------------------
+
+### Linking react-native-yamap (RN < 0.60)
+
+Source: https://github.com/volga-volga/react-native-yamap/blob/master/README.md
+
+Command used in React Native versions older than 0.60 to automatically link native dependencies of the `react-native-yamap` library. This step is often automated in newer RN versions.
+
+```Shell
+react-native link react-native-yamap
+```
+
+=== COMPLETE CONTENT === This response contains all available snippets from this library. No additional content exists. Do not make further requests.
+

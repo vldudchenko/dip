@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import { config } from './config/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -11,6 +11,7 @@ import userRoutes from './routes/users.js';
 import configRoutes from './routes/config.js';
 import routeRoutes from './routes/routes.js';
 import sessionRoutes from './routes/sessions.js';
+import imageRoutes from './routes/images.js';
 
 const app = express();
 
@@ -27,10 +28,10 @@ app.use('/auth', authRoutes);
 app.use('/videos', videoRoutes);
 app.use('/', commentRoutes); // "/" так как нет страницы комментариев
 app.use('/users', userRoutes);
-app.use('/user', userRoutes);
 app.use('/config', configRoutes);
 app.use('/routes', routeRoutes);
 app.use('/sessions', sessionRoutes);
+app.use('/images', imageRoutes);
 
 // Middleware для обработки ошибок
 app.use(errorHandler);

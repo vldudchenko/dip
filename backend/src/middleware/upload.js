@@ -29,10 +29,10 @@ export const upload = multer({
     fileSize: config.maxVideoSizeMb * 1024 * 1024
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
+    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
-      cb(new Error('Только видео файлы'), false);
+      cb(new Error('Разрешены только видео и изображения'), false);
     }
   }
 });

@@ -1,6 +1,6 @@
 import express from 'express';
 import { upload } from '../middleware/upload.js';
-import { videoStorageService } from '../services/videoStorage.js';
+import { mediaStorageService } from '../services/mediaStorage.js';
 import { videoService } from '../services/video.js';
 import { requireAuth } from '../middleware/errorHandler.js';
 
@@ -9,15 +9,16 @@ const router = express.Router();
 /**
  * POST /videos - Загрузка нового видео
  */
-router.post('/videos', upload.single('video'), async (req, res) => {
+router.post('/', upload.single('video'), async (req, res) => {
   try {
-    const { userId, latitude, longitude, isLive, routeStart, routeEnd, routeGeometry, videoDuration } = req.body;
+    const { userId, routeId, latitude, longitude, isLive, routeStart, routeEnd, routeGeometry, videoDuration } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Файл не загружен' });
     }
 
     const additionalData = {
+      routeId,
       isLive: isLive === 'true' || isLive === true,
       routeStart: routeStart ? (typeof routeStart === 'string' ? JSON.parse(routeStart) : routeStart) : null,
       routeEnd: routeEnd ? (typeof routeEnd === 'string' ? JSON.parse(routeEnd) : routeEnd) : null,
@@ -25,7 +26,7 @@ router.post('/videos', upload.single('video'), async (req, res) => {
       videoDuration: videoDuration ? parseInt(videoDuration) : null,
     };
 
-    const video = await videoStorageService.uploadVideo(
+    const video = await mediaStorageService.uploadVideo(
       req.file,
       userId,
       latitude,
@@ -43,11 +44,11 @@ router.post('/videos', upload.single('video'), async (req, res) => {
 /**
  * GET /videos - Получение всех видео
  */
-router.get('/', async (req, res) => {
-  try {
-    const { latitude, longitude, radius } = req.query;
-
-    const videos = await videoService.getAllVideos({ latitude, longitude, radius });
+  router.get('/', async (req, res) => {
+    try {
+      const { latitude, longitude, radius, routeId } = req.query;
+  
+      const videos = await videoService.getAllVideos({ latitude, longitude, radius, routeId });
 
     res.json(videos);
   } catch (error) {
@@ -85,15 +86,10 @@ router.get('/:id/stats', async (req, res) => {
 /**
  * POST /videos/:id/view - Добавление просмотра
  */
-router.post('/:id/view', async (req, res) => {
+router.post('/:id/view', requireAuth, async (req, res) => {
   try {
     const { userId } = req.body;
     const result = await videoService.addView(req.params.id, userId);
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Требуется авторизация', viewed: false });
-    }
-
     res.json(result);
   } catch (error) {
     console.error('Add view error:', error);
@@ -150,7 +146,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Удаление доступно только владельцу' });
     }
 
-    await videoStorageService.deleteVideo(id, video.file_url);
+    await mediaStorageService.deleteVideo(id, video.file_url);
 
     res.json({ success: true, message: 'Видео удалено' });
   } catch (error) {
@@ -170,7 +166,7 @@ router.post('/get-duration', async (req, res) => {
       return res.status(400).json({ error: 'Не указан путь к видео' });
     }
 
-    const duration = await videoStorageService.getVideoDuration(videoPath);
+    const duration = await mediaStorageService.getVideoDuration(videoPath);
 
     res.json({ success: true, duration });
   } catch (error) {

@@ -73,10 +73,16 @@ export const GuidePage = () => {
     fetchData();
   }, [login, navigate]);
 
-  const handleRouteSaved = () => {
+  const handleRouteSaved = (e, result) => {
     setShowAddRoute(false);
     setEditingRoute(null);
     refreshRoutes();
+    
+    // Если это создание нового маршрута (не редактирование старого),
+    // перенаправляем на страницу рисования пути на карте
+    if (result && result.id && !editingRoute) {
+      navigate(`/route/${result.id}/edit-path`);
+    }
   };
 
   const refreshRoutes = async () => {
@@ -111,10 +117,7 @@ export const GuidePage = () => {
       id: route.id,
       title: route.title,
       description: route.description || '',
-      difficulty: route.difficulty,
-      price: String(route.price),
-      min_people: String(route.min_people),
-      max_people: String(route.max_people)
+      difficulty: route.difficulty
     });
   };
 
@@ -164,10 +167,7 @@ export const GuidePage = () => {
             initialValues={{
               title: '',
               description: '',
-              difficulty: 'easy',
-              price: '',
-              min_people: '',
-              max_people: ''
+              difficulty: 'easy'
             }}
             onSubmit={handleRouteSaved}
             onCancel={() => setShowAddRoute(false)}
@@ -205,10 +205,7 @@ export const GuidePage = () => {
                         <p className="route-description">{route.description}</p>
                       )}
 
-                      <div className="route-details">
-                        <span className="route-price">💰 {route.price} ₽</span>
-                        <span className="route-people">👥 {route.min_people}-{route.max_people} чел.</span>
-                      </div>
+
 
                       {sessions[route.id] && sessions[route.id].length > 0 && (
                         <div className="route-sessions-preview">
@@ -221,9 +218,12 @@ export const GuidePage = () => {
                                 </span>
                                 <span className="session-mini-date">
                                   {new Date(session.start_date).toLocaleDateString('ru-RU')}
+                                  {session.end_date && session.end_date !== session.start_date && (
+                                    <> — {new Date(session.end_date).toLocaleDateString('ru-RU')}</>
+                                  )}
                                 </span>
                                 <span className="session-mini-participants">
-                                  👥 {session.participants_count}/{route.max_people}
+                                  💰 {session.price} ₽ | 👥 {session.participants_count}/{session.max_people}
                                 </span>
                               </div>
                             ))}
@@ -242,6 +242,15 @@ export const GuidePage = () => {
                           }}
                         >
                           ✏️ Редактировать
+                        </button>
+                        <button
+                          className="btn btn--secondary btn--small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/route/${route.id}/edit-path`);
+                          }}
+                        >
+                          🗺️ Карта маршрута
                         </button>
                         <button
                           className="btn btn--danger btn--small"

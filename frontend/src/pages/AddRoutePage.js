@@ -8,9 +8,11 @@ import { RouteForm } from '../components/RouteForm';
 export const AddRoutePage = () => {
   const navigate = useNavigate();
 
-  const handleSubmit = async (e, formData) => {
+  const handleSubmit = async (e, result) => {
     e.preventDefault();
-    // Обработка уже внутри RouteForm
+    if (result && result.id) {
+      navigate(`/route/${result.id}/edit-path`);
+    }
   };
 
   const handleCancel = () => {
@@ -25,9 +27,6 @@ export const AddRoutePage = () => {
           initialValues={{
             title: '',
             difficulty: 'easy',
-            price: '',
-            min_people: '',
-            max_people: '',
             description: ''
           }}
           onSubmit={handleSubmit}

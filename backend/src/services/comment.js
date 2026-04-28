@@ -113,8 +113,7 @@ class CommentService {
       throw new Error('Комментарий не может быть пустым');
     }
 
-    // Проверяем владельца
-    const existingComment = await this.getCommentById(id);
+    const existingComment = await this.getCommentFull(id);
 
     if (existingComment.user_id !== userId) {
       throw new Error('Можно редактировать только свои комментарии');
@@ -172,6 +171,20 @@ class CommentService {
     }
 
     return existingComment;
+  }
+
+  async getCommentFull(id) {
+    const { data, error } = await supabaseAnon
+      .from('comments')
+      .select('user_id')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      throw new Error('Комментарий не найден');
+    }
+
+    return data;
   }
 }
 

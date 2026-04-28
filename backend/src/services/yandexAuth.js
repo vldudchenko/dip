@@ -9,11 +9,14 @@ class YandexAuthService {
   /**
    * Генерирует URL для авторизации через Яндекс
    */
-  getAuthUrl() {
+  getAuthUrl(state) {
     const authUrl = new URL('https://oauth.yandex.ru/authorize');
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('client_id', config.yandexOAuthClientId);
     authUrl.searchParams.set('redirect_uri', config.yandexOAuthRedirectUri);
+    if (state) {
+      authUrl.searchParams.set('state', state);
+    }
     return authUrl.toString();
   }
 
@@ -78,6 +81,30 @@ class YandexAuthService {
   }
 
   /**
+   * Удаляет аватар из хранилища по его URL
+   */
+  async deleteAvatarByUrl(avatarUrl) {
+    if (!avatarUrl) return;
+
+    try {
+      // Извлекаем имя файла из URL
+      // URL обычно: https://.../storage/v1/object/public/avatars/filename.jpg
+      const parts = avatarUrl.split('/');
+      const fileName = parts[parts.length - 1];
+
+      // Проверяем, что это файл из нашего бакета (в URL есть 'avatars')
+      if (fileName && avatarUrl.includes('/avatars/')) {
+        await supabaseAdmin.storage
+          .from('avatars')
+          .remove([fileName]);
+      }
+    } catch (error) {
+      console.error('Ошибка при удалении старого аватара из хранилища:', error);
+      // Не выбрасываем ошибку, чтобы основной процесс не прерывался
+    }
+  }
+
+  /**
    * Сохраняет или обновляет пользователя в базе данных
    */
   async upsertUser(userData, tokenData, avatarUrl) {
@@ -90,8 +117,7 @@ class YandexAuthService {
         avatar: avatarUrl,
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
-        token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-        is_guide: false
+        token_expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
       }, { onConflict: 'yandex_id' })
       .select()
       .single();
@@ -111,7 +137,15 @@ class YandexAuthService {
     // Получение информации о пользователе
     const userData = await this.getUserInfo(tokenData.access_token);
 
-    let avatarUrl = null;
+    // Получаем текущего пользователя для проверки старого аватара
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('avatar')
+      .eq('yandex_id', userData.id)
+      .maybeSingle();
+
+    const oldAvatarUrl = existingUser?.avatar;
+    let avatarUrl = oldAvatarUrl; // По умолчанию сохраняем старый аватар
 
     // Загрузка аватара если он есть
     if (userData.default_avatar_id) {
@@ -120,7 +154,15 @@ class YandexAuthService {
 
         if (avatarResponse.ok) {
           const avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
-          avatarUrl = await this.uploadAvatarToStorage(userData, avatarBuffer);
+          const newAvatarUrl = await this.uploadAvatarToStorage(userData, avatarBuffer);
+          
+          if (newAvatarUrl) {
+            avatarUrl = newAvatarUrl;
+            // Если загрузка прошла успешно и был старый аватар - удаляем его
+            if (oldAvatarUrl) {
+              await this.deleteAvatarByUrl(oldAvatarUrl);
+            }
+          }
         }
       } catch (avatarError) {
         console.error('Ошибка загрузки аватара:', avatarError);

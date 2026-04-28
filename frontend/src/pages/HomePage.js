@@ -98,16 +98,7 @@ export const HomePage = () => {
                   <p className="route-card-description">{route.description}</p>
                 )}
 
-                <div className="route-card-info">
-                  <div className="route-card-detail">
-                    <span className="label">💰 Цена:</span>
-                    <span className="value">{route.price} ₽</span>
-                  </div>
-                  <div className="route-card-detail">
-                    <span className="label">👥 Мин. группа:</span>
-                    <span className="value">от {route.min_people} чел.</span>
-                  </div>
-                </div>
+
 
                 {guide && guide.login && (
                   <div className="route-card-guide">

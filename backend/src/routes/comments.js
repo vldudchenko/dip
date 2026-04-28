@@ -37,7 +37,7 @@ router.post('/videos/:videoId/comments', requireAuth, async (req, res) => {
 /**
  * PUT /api/comments/:id - Обновление комментария
  */
-router.put('/videos/:videoId/comments/:id', async (req, res) => {
+router.put('/comments/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, content } = req.body;
@@ -56,7 +56,7 @@ router.put('/videos/:videoId/comments/:id', async (req, res) => {
 /**
  * DELETE /api/comments/:id - Удаление комментария
  */
-router.delete('/videos/:videoId/comments/:id', async (req, res) => {
+router.delete('/comments/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;

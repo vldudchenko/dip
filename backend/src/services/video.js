@@ -8,7 +8,7 @@ class VideoService {
    * Получает все видео с фильтрацией по радиусу
    */
   async getAllVideos(filters = {}) {
-    const { latitude, longitude, radius } = filters;
+    const { latitude, longitude, radius, routeId } = filters;
 
     let query = supabaseAnon
       .from('videos')
@@ -20,6 +20,10 @@ class VideoService {
         )
       `)
       .order('created_at', { ascending: false });
+
+    if (routeId) {
+      query = query.eq('route_id', routeId);
+    }
 
     // Базовая фильтрация по координатам (приблизительная)
     if (latitude && longitude && radius) {
@@ -160,12 +164,16 @@ class VideoService {
    * Проверяет наличие лайка у пользователя
    */
   async checkLike(id, userId) {
+    if (!userId) {
+      return { liked: false };
+    }
+    
     const { data, error } = await supabaseAnon
       .from('likes')
       .select('id')
       .eq('video_id', id)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (error && error.code !== 'PGRST116') {
       throw error;

@@ -32,8 +32,8 @@ export function useAuth() {
       localStorage.setItem('yandex_token', token);
       localStorage.setItem('user_id', userId);
       fetchUser(userId);
-      window.location.href = '/';
-      return;
+      // Очищаем параметры из URL без перезагрузки страницы
+      window.history.replaceState({}, document.title, '/');
     }
 
     const storedUserId = localStorage.getItem('user_id');

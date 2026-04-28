@@ -27,19 +27,22 @@ export function getConfig() {
 }
 
 export const api = {
-  async fetchUser(userId) {
+  async fetchUser(userId, forceRefresh = false) {
     const cacheKey = `user:${userId}`;
-    const cached = getFromCache(cacheKey);
-    if (cached) return cached;
+    if (forceRefresh) {
+      clearCache(cacheKey);
+    } else {
+      const cached = getFromCache(cacheKey);
+      if (cached) return cached;
+    }
 
     try {
-      const res = await fetch(`${API_URL}/user/${userId}`);
+      const res = await fetch(`${API_URL}/users/${userId}`);
       const data = await res.json();
       setCache(cacheKey, data);
       return data;
     } catch (error) {
       console.error('Fetch user error:', error);
-      console.log('User: ', userId)
       return null;
     }
   },
