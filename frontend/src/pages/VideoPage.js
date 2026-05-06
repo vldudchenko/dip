@@ -1,15 +1,19 @@
-﻿import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
-import { LiveMarkerMap } from './LiveMarkerMap';
+import { LiveMarkerMap } from '../components/LiveMarkerMap';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 // Компонент комментария с поддержкой вложенности
-function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
-  const [showReplyForm, setShowReplyForm] = useState(false);
+function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply }) {
+  const [showReplies, setShowReplies] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+
+  const showReplyForm = activeReplyId === comment.id;
 
   const isOwner = user?.id === comment.user_id;
 
@@ -18,7 +22,6 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
     if (!replyContent.trim()) return;
     await onReply(comment.id, replyContent);
     setReplyContent('');
-    setShowReplyForm(false);
   };
 
   const handleEdit = async (e) => {
@@ -28,8 +31,12 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
     setIsEditing(false);
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Удалить комментарий?')) return;
+  const handleDeleteClick = () => {
+    setShowConfirmDelete(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setShowConfirmDelete(false);
     await onDelete(comment.id);
   };
 
@@ -47,21 +54,39 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
   return (
     <div className="comment-item">
       <div className="comment-header">
-        <img
-          src={comment.users?.avatar || 'https://via.placeholder.com/32'}
-          alt={comment.users?.login}
-          className="comment-avatar"
-        />
-        <div className="comment-info">
-          <span className="comment-author">{comment.users?.login}</span>
-          <span className="comment-date">{formatDate(comment.created_at)}</span>
-        </div>
+        <Link to={`/user/${comment.users?.login}`} className="comment-header-user">
+          <img
+            src={comment.users?.avatar || 'https://via.placeholder.com/32'}
+            alt={comment.users?.login}
+            className="comment-avatar"
+          />
+          <div className="comment-info">
+            <span className="comment-author">{comment.users?.login}</span>
+            <span className="comment-date">{formatDate(comment.created_at)}</span>
+          </div>
+        </Link>
+
+        {comment.replyToUser && comment.replyToUser.id !== comment.users?.id && (
+          <>
+            <span className="comment-reply-arrow">→</span>
+            <Link to={`/user/${comment.replyToUser.login}`} className="comment-header-user">
+              <img
+                src={comment.replyToUser.avatar || 'https://via.placeholder.com/24'}
+                alt={comment.replyToUser.login}
+                className="comment-avatar"
+                style={{ width: '24px', height: '24px' }}
+              />
+              <span className="comment-author" style={{ fontSize: '0.85rem' }}>{comment.replyToUser.login}</span>
+            </Link>
+          </>
+        )}
+
         {isOwner && (
           <div className="comment-actions">
             <button className="comment-action-btn" onClick={() => setIsEditing(!isEditing)}>
               ✏️
             </button>
-            <button className="comment-action-btn" onClick={handleDelete}>
+            <button className="comment-action-btn" onClick={handleDeleteClick}>
               🗑
             </button>
           </div>
@@ -74,19 +99,28 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             className="comment-edit-textarea"
+            maxLength={500}
           />
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+            {editContent?.length || 0}/500
+          </div>
           <div className="comment-edit-buttons">
             <button type="submit" className="btn btn--primary">Сохранить</button>
             <button type="button" className="btn btn--secondary" onClick={() => setIsEditing(false)}>Отмена</button>
           </div>
         </form>
       ) : (
-        <div className="comment-content">{comment.content}</div>
+        <div className="comment-content">
+          {comment.content.replace(/^@[^,]+, /, '')}
+        </div>
       )}
 
       <div className="comment-footer">
-        <button className="comment-reply-btn" onClick={() => setShowReplyForm(!showReplyForm)}>
-          Ответить
+        <button className="comment-reply-btn" onClick={() => {
+          onToggleReply(comment.id);
+          setReplyContent('');
+        }}>
+          {showReplyForm ? 'Отмена' : 'Ответить'}
         </button>
       </div>
 
@@ -97,28 +131,53 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete }) {
             onChange={(e) => setReplyContent(e.target.value)}
             placeholder="Ваш ответ..."
             className="comment-reply-textarea"
+            maxLength={500}
           />
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px', marginBottom: '8px' }}>
+            {replyContent?.length || 0}/500
+          </div>
           <div className="comment-reply-buttons">
             <button type="submit" className="btn btn--primary btn--small">Отправить</button>
-            <button type="button" className="btn btn--secondary btn--small" onClick={() => setShowReplyForm(false)}>Отмена</button>
           </div>
         </form>
       )}
 
       {comment.replies && comment.replies.length > 0 && (
-        <div className="comment-replies">
-          {comment.replies.map((reply) => (
-            <CommentItem
-              key={reply.id}
-              comment={reply}
-              user={user}
-              onReply={onReply}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
+        <div className="comment-replies-wrapper">
+          <button
+            className="comment-show-replies-btn"
+            onClick={() => setShowReplies(!showReplies)}
+          >
+            {showReplies ? 'Скрыть ответы' : `Ответы (${comment.replies.length})`}
+          </button>
+
+          {showReplies && (
+            <div className="comment-replies">
+              {comment.replies.map((reply) => (
+                <CommentItem
+                  key={reply.id}
+                  comment={reply}
+                  user={user}
+                  onReply={onReply}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  activeReplyId={activeReplyId}
+                  onToggleReply={onToggleReply}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={showConfirmDelete}
+        title="Удаление комментария"
+        message="Вы уверены, что хотите удалить этот комментарий?"
+        confirmLabel="Удалить"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
     </div>
   );
 }
@@ -137,12 +196,29 @@ export function VideoPage() {
   const [stats, setStats] = useState({ viewCount: 0, likeCount: 0, commentCount: 0 });
   const [isLiked, setIsLiked] = useState(false);
   const [loadingLike, setLoadingLike] = useState(false);
+  const [showCommentForm, setShowCommentForm] = useState(false);
 
   // Комментарии
   const [comments, setComments] = useState([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [activeReplyId, setActiveReplyId] = useState(null);
+
+  const handleToggleMainForm = () => {
+    const newState = !showCommentForm;
+    setShowCommentForm(newState);
+    if (newState) setActiveReplyId(null);
+  };
+
+  const handleToggleReply = (id) => {
+    if (activeReplyId === id) {
+      setActiveReplyId(null);
+    } else {
+      setActiveReplyId(id);
+      setShowCommentForm(false);
+    }
+  };
 
   // Live маркер
   const videoRef = useRef(null);
@@ -293,9 +369,9 @@ export function VideoPage() {
           setComments(prev => [result.comment, ...prev]);
         }
         setStats(prev => ({ ...prev, commentCount: prev.commentCount + 1 }));
-        if (!parentId) {
-          setNewComment('');
-        }
+        setNewComment('');
+        setShowCommentForm(false);
+        setActiveReplyId(null);
       }
     } catch (err) {
       console.error('Add comment error:', err);
@@ -396,7 +472,7 @@ export function VideoPage() {
   return (
     <div className="video-page">
       <button className="back-button" onClick={() => navigate('/')}>
-        ← Назад к карте
+        Назад к карте
       </button>
 
       <div className="video-page-content">
@@ -499,27 +575,43 @@ export function VideoPage() {
           </div>
 
           <div className="comments-section">
-            <h3 className="comments-title">
-              Комментарии ({stats.commentCount})
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h3 className="comments-title" style={{ margin: 0 }}>
+                Комментарии ({stats.commentCount})
+              </h3>
+              {user && (
+                <button
+                  className="btn btn--primary btn--small"
+                  onClick={handleToggleMainForm}
+                >
+                  {showCommentForm ? 'Отмена' : 'Написать комментарий'}
+                </button>
+              )}
+            </div>
 
             {user ? (
-              <form className="add-comment-form" onSubmit={(e) => { e.preventDefault(); handleAddComment(); }}>
-                <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Напишите комментарий..."
-                  className="comment-input"
-                  disabled={submittingComment}
-                />
-                <button
-                  type="submit"
-                  className="btn btn--primary"
-                  disabled={submittingComment || !newComment.trim()}
-                >
-                  {submittingComment ? 'Отправка...' : 'Отправить'}
-                </button>
-              </form>
+              showCommentForm && (
+                <form className="add-comment-form" onSubmit={(e) => { e.preventDefault(); handleAddComment(); }}>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Напишите комментарий..."
+                    className="comment-input"
+                    disabled={submittingComment}
+                    maxLength={500}
+                  />
+                  <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px', marginBottom: '10px' }}>
+                    {newComment?.length || 0}/500
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    disabled={submittingComment || !newComment.trim()}
+                  >
+                    {submittingComment ? 'Отправка...' : 'Отправить'}
+                  </button>
+                </form>
+              )
             ) : (
               <p className="login-to-comment">
                 <button className="btn btn--primary" onClick={() => window.location.href = `${process.env.REACT_APP_API_URL}/auth/yandex`}>
@@ -540,6 +632,8 @@ export function VideoPage() {
                     onReply={handleReply}
                     onEdit={handleEditComment}
                     onDelete={handleDeleteComment}
+                    activeReplyId={activeReplyId}
+                    onToggleReply={handleToggleReply}
                   />
                 ))
               ) : (

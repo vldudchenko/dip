@@ -1,0 +1,406 @@
+/* ============================================
+   Страница гида
+   ============================================ */
+.guide-page {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.guide-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.guide-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.guide-info h1 {
+  margin: 0 0 0.5rem;
+  color: #333;
+  font-size: 2rem;
+}
+
+.guide-email {
+  color: #666;
+  margin: 0.5rem 0;
+}
+
+.guide-status {
+  color: #10b981;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+/* ============================================
+   Секция маршрутов
+   ============================================ */
+.routes-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.routes-header-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #e5e5e5;
+  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.tabs-container {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 0;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  outline: none;
+}
+
+.tab-btn.active {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.tab-underline {
+  position: absolute;
+  bottom: -9px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #7c3aed;
+}
+
+.tab-count {
+  font-size: 1rem;
+  color: #9ca3af;
+  padding: 2px 6px;
+  position: relative;
+  top: -6px;
+}
+
+.tab-btn.active .tab-count {
+  color: #7c3aed;
+}
+
+.routes-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.btn-add-route {
+  background: #7c3aed;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-add-route:hover {
+  background: #5b21b6;
+}
+
+.no-routes {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+}
+
+.routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.route-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.route-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.route-description {
+  color: #666;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.route-description:hover {
+  cursor: pointer;
+}
+
+.route-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0rem;
+  cursor: pointer;
+}
+
+.route-header:hover {
+  opacity: 0.9;
+}
+
+.route-body {
+  /* Остановка всплытия клика */
+}
+
+.route-title {
+  margin: 0;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.route-details {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.route-price,
+.route-people {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.route-sessions-preview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e5e5;
+}
+
+.sessions-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.75rem;
+}
+
+.sessions-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-mini-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.session-mini-status {
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.session-mini-date,
+.session-mini-participants {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Действия с карточкой маршрута */
+.route-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e5e5;
+}
+
+.route-card-editing {
+  width: 100%;
+}
+
+.add-route-form {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.add-route-form .form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.add-route-form .form-col {
+  flex: 1;
+}
+
+.add-route-form label {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+
+.add-route-form input,
+.add-route-form select,
+.add-route-form textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.add-route-form textarea {
+  resize: vertical;
+}
+
+@media (max-width: 600px) {
+
+  .add-route-form .form-row,
+  .form-row-small {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .form-col-small {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* ============================================
+   Управление прохождениями
+   ============================================ */
+.sessions-management {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.session-info-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-route-title {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.session-status-management {
+  display: flex;
+  align-items: center;
+}
+
+.session-status-select {
+  padding: 0.4rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+}
+
+.session-status-select:hover {
+  opacity: 0.9;
+}
+
+.session-status-select option {
+  background: white;
+  color: #333;
+}
+
+.session-status-select.status-waiting {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #d1d5db;
+}
+
+.session-status-select.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.session-status-select.status-in-progress {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+}
+
+.session-status-select.status-completed {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #ddd6fe;
+}
+
+.session-status-select.status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.session-details-row {
+  background: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+
+.form-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}

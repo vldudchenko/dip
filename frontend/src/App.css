@@ -1,4 +1,4 @@
-﻿/* ============================================
+/* ============================================
    Модульные стили
    ============================================ */
 
@@ -20,8 +20,11 @@
 /* Live Marker */
 @import './styles/liveMarker.css';
 
-/* Страницы: User, Guide, AddRoute */
-@import './styles/pages.css';
+/* Страницы: User, Guide, Route */
+@import './styles/userPage.css';
+@import './styles/guidePage.css';
+@import './styles/routePage.css';
+
 
 /* Главная страница */
 @import './styles/homePage.css';

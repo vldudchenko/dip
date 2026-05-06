@@ -71,4 +71,75 @@ router.delete('/comments/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ==========================================
+// КОММЕНТАРИИ К МАРШРУТАМ
+// ==========================================
+
+/**
+ * GET /api/routes/:routeId/comments - Получение комментариев к маршруту
+ */
+router.get('/routes/:routeId/comments', async (req, res) => {
+  try {
+    const comments = await commentService.getCommentsByRouteId(req.params.routeId);
+    res.json(comments);
+  } catch (error) {
+    console.error('Get route comments error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/routes/:routeId/comments - Добавление комментария к маршруту
+ */
+router.post('/routes/:routeId/comments', requireAuth, async (req, res) => {
+  try {
+    const { routeId } = req.params;
+    const { userId, content, type, parentId } = req.body;
+
+    const comment = await commentService.addRouteComment(routeId, userId, content, type, parentId);
+
+    res.json({ success: true, comment });
+  } catch (error) {
+    console.error('Add route comment error:', error);
+    res.status(error.message.includes('пустым') || error.message.includes('найден') ? 400 : 500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/route-comments/:id - Обновление комментария к маршруту
+ */
+router.put('/route-comments/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, content } = req.body;
+
+    const comment = await commentService.updateRouteComment(id, userId, content);
+
+    res.json({ success: true, comment });
+  } catch (error) {
+    const status = error.message.includes('пустым') ? 400 :
+                   error.message.includes('найден') ? 404 :
+                   error.message.includes('свои') ? 403 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/route-comments/:id - Удаление комментария к маршруту
+ */
+router.delete('/route-comments/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    await commentService.deleteRouteComment(id, userId);
+
+    res.json({ success: true, message: 'Комментарий удалён' });
+  } catch (error) {
+    const status = error.message.includes('найден') ? 404 :
+                   error.message.includes('свои') || error.message.includes('маршрутам') ? 403 : 500;
+    res.status(status).json({ error: error.message });
+  }
+});
+
 export default router;

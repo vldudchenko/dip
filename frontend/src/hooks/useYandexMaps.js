@@ -2,14 +2,26 @@
 import { useEffect, useState } from "react";
 import { YANDEX_API_KEY } from "../utils/constants";
 
-export function useYandexMaps() {
+export function useYandexMaps(enabled = true) {
   const [ymapsReady, setYmapsReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    // Если провайдер не Яндекс — не загружаем SDK
+    if (!enabled) {
+      setYmapsReady(false);
+      setLoadError(false);
+      return;
+    }
+
     // Если карты уже загружены и готовы
     if (window.ymaps3 && window.ymaps3.ready) {
       window.ymaps3.ready.then(() => {
         setYmapsReady(true);
+        setLoadError(false);
+      }).catch(err => {
+        console.error('Yandex Maps Ready Error:', err);
+        setLoadError(true);
       });
       return;
     }
@@ -24,7 +36,8 @@ export function useYandexMaps() {
           clearInterval(checkReady);
           window.ymaps3.ready.then(() => {
             setYmapsReady(true);
-          });
+            setLoadError(false);
+          }).catch(() => setLoadError(true));
         }
       }, 100);
       return () => clearInterval(checkReady);
@@ -39,22 +52,26 @@ export function useYandexMaps() {
       if (window.ymaps3 && window.ymaps3.ready) {
         window.ymaps3.ready.then(() => {
           setYmapsReady(true);
+          setLoadError(false);
+        }).catch(err => {
+          console.error('Yandex Maps Init Error:', err);
+          setLoadError(true);
         });
+      } else {
+        setLoadError(true);
       }
     };
 
     script.onerror = () => {
-      console.error('Ошибка загрузки Яндекс Карт API');
-      console.error('Script URL:', script.src);
+      console.error('Ошибка загрузки Яндекс Карт API (возможно исчерпан лимит)');
+      setLoadError(true);
     };
-
-    console.log('Loading Yandex Maps script:', script.src);
     document.head.appendChild(script);
 
     return () => {
       // Не удаляем скрипт
     };
-  }, []);
+  }, [enabled]);
 
-  return { ymapsReady };
+  return { ymapsReady, loadError };
 }

@@ -13,9 +13,8 @@
 
 .footer-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 3rem;
-  margin-bottom: 2.5rem;
   padding-bottom: 2.5rem;
   border-bottom: 1px solid #333;
 }
@@ -87,10 +86,6 @@
   font-size: 1rem;
   font-weight: 500;
   transition: color 0.2s;
-}
-
-.footer-phone a:hover {
-  color: #7c3aed;
 }
 
 .footer-schedule {

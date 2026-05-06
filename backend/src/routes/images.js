@@ -40,7 +40,7 @@ router.post('/', upload.single('image'), requireAuth, async (req, res) => {
 router.get('/route/:routeId', async (req, res) => {
   try {
     const { data, error } = await supabaseAnon
-      .from('route_images')
+      .from('images')
       .select(`
         *,
         users (
@@ -70,7 +70,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     // Получаем изображение для проверки владельца
     const { data: image, error: fetchError } = await supabaseAnon
-      .from('route_images')
+      .from('images')
       .select('*')
       .eq('id', id)
       .single();

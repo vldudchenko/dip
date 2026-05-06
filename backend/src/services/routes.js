@@ -92,6 +92,55 @@ class RoutesService {
 
     return { success: true };
   }
+
+  /**
+   * Получает статистику маршрута
+   */
+  async getRouteStats(id) {
+    // Получаем количество просмотров
+    const { count: viewsCount, error: viewsError } = await supabaseAdmin
+      .from('route_views')
+      .select('*', { count: 'exact', head: true })
+      .eq('route_id', id);
+
+    if (viewsError) throw viewsError;
+
+    // Получаем количество завершенных сессий
+    const { count: completedSessionsCount, error: sessionsError } = await supabaseAdmin
+      .from('route_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('route_id', id)
+      .eq('status', 'completed');
+
+    if (sessionsError) throw sessionsError;
+
+    return {
+      views: viewsCount || 0,
+      completed_sessions: completedSessionsCount || 0
+    };
+  }
+
+  /**
+   * Добавляет уникальный просмотр маршрута (уникальный по user_id)
+   */
+  async addView(routeId, userId) {
+    // В Supabase/Postgres при нарушении UNIQUE-ограничения может быть ошибка, если не сделать upsert.
+    // Если пользователь уже смотрел маршрут, просто игнорируем ошибку (т.к. UNIQUE constraint в БД)
+    const { data, error } = await supabaseAdmin
+      .from('route_views')
+      .insert({ route_id: routeId, user_id: userId })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') { // уникальное нарушение
+        return { success: true, newView: false };
+      }
+      throw error;
+    }
+
+    return { success: true, newView: true, data };
+  }
 }
 
 export const routesService = new RoutesService();

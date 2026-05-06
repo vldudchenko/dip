@@ -3,16 +3,17 @@ import { Routes, Route } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Map } from './components/Map';
-import { VideoPage } from './components/VideoPage';
+import { VideoPage } from './pages/VideoPage';
 import { HomePage } from './pages/HomePage';
 import { UserPage } from './pages/UserPage';
 import { GuidePage } from './pages/GuidePage';
-import { AddRoutePage } from './pages/AddRoutePage';
 import { RoutePage } from './pages/RoutePage';
+import { RoutePathPage } from './pages/RoutePathPage';
 
 import { useAuth } from './hooks/useAuth';
 import { useVideos } from './hooks/useVideos';
 import { useYandexMaps } from './hooks/useYandexMaps';
+import { useMapProvider } from './hooks/useMapProvider';
 
 import { api, loadConfig } from './api';
 
@@ -21,7 +22,9 @@ import './App.css';
 function App() {
   const { user, login, logout } = useAuth();
   const { videos, fetchVideos } = useVideos();
-  const { ymapsReady } = useYandexMaps();
+  const { provider } = useMapProvider();
+  // Загружаем Яндекс SDK только если выбран яндекс-провайдер
+  const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
   const [configLoaded, setConfigLoaded] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
@@ -74,22 +77,17 @@ function App() {
 
           <Route path="/map" element={
             <>
-              {!ymapsReady && (
-                <div className="map-loading">
-                  Загрузка карты...
-                </div>
-              )}
-
-              {ymapsReady && configLoaded && (
-                <Map
-                  user={user}
-                  videos={videos}
-                  editMode={editMode}
-                  fetchVideos={fetchVideos}
-                  onUploadRef={uploadHandlerRef}
-                  onFetchVideosRef={fetchVideosRef}
-                />
-              )}
+              <Map
+                user={user}
+                videos={videos}
+                editMode={editMode}
+                fetchVideos={fetchVideos}
+                onUploadRef={uploadHandlerRef}
+                onFetchVideosRef={fetchVideosRef}
+                ymapsReady={ymapsReady}
+                loadError={loadError}
+                configLoaded={configLoaded}
+              />
 
               {!user && (
                 <div className="login-prompt">
@@ -103,9 +101,9 @@ function App() {
 
           <Route path="/guide/:login" element={<GuidePage />} />
 
-          <Route path="/guide/:login/add-route" element={<AddRoutePage />} />
-
           <Route path="/route/:id" element={<RoutePage />} />
+
+          <Route path="/route/:id/path" element={<RoutePathPage />} />
 
           <Route path="/video/:login/:id" element={<VideoPage />} />
         </Routes>

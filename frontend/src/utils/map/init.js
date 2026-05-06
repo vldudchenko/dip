@@ -1,4 +1,4 @@
-﻿import { saveMapState, loadMapState } from '../mapState';
+import { saveMapState, loadMapState } from '../mapState';
 import customization from '../../customization.json';
 import { buildRoute } from './helpers';
 import { createUploadPopupElement } from './uploadPopup';
@@ -16,9 +16,10 @@ export async function initMap({
   editModeRef,
   onUploadRef,
   onFetchVideosRef,
-  navigate,
   highlightedVideoIdRef,
-  refreshVideosRef
+  refreshVideosRef,
+  mode,
+  onMapClickRef
 }) {
   if (!window.ymaps3) return null;
 
@@ -88,6 +89,13 @@ export async function initMap({
   const clickListener = new YMapListener({
     onClick: (_, event) => {
       const coords = event.coordinates;
+
+      if (mode === 'route-editor') {
+        if (onMapClickRef?.current) {
+          onMapClickRef.current(coords);
+        }
+        return;
+      }
 
       if (activeLiveController?.isActive) return;
       if (!editModeRef.current) return;

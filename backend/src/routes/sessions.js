@@ -65,8 +65,8 @@ router.post('/', async (req, res) => {
       const minDateTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 часа от текущего времени
 
       if (sessionDateTime < minDateTime) {
-        return res.status(400).json({ 
-          error: 'Ошибка: Запись на прохождение возможна не позднее чем за 24 часа до начала' 
+        return res.status(400).json({
+          error: 'Ошибка: Запись на прохождение возможна не ранее чем через 24 часа от текущего времени'
         });
       }
     }
@@ -108,11 +108,11 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/join', async (req, res) => {
   try {
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'Необходимо указать userId' });
     }
-    
+
     const participant = await sessionService.addParticipant(req.params.id, userId);
     res.json(participant);
   } catch (error) {
@@ -126,11 +126,11 @@ router.post('/:id/join', async (req, res) => {
 router.delete('/:id/leave', async (req, res) => {
   try {
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'Необходимо указать userId' });
     }
-    
+
     await sessionService.removeParticipant(req.params.id, userId);
     res.json({ success: true });
   } catch (error) {
@@ -144,11 +144,11 @@ router.delete('/:id/leave', async (req, res) => {
 router.get('/:id/is-joined', async (req, res) => {
   try {
     const { userId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'Необходимо указать userId' });
     }
-    
+
     const isJoined = await sessionService.isUserJoined(req.params.id, userId);
     res.json({ isJoined });
   } catch (error) {

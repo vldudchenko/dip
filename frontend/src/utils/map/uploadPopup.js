@@ -1,4 +1,4 @@
-﻿import { formatDuration } from './helpers';
+import { formatDuration } from './helpers';
 
 /**
  * Создаёт popup для загрузки видео (обычного и live)
@@ -9,7 +9,8 @@ export function createUploadPopupElement(
   onUpload,
   onCancel,
   uploading,
-  onLiveRouteSelect
+  onLiveRouteSelect,
+  isLeaflet = false
 ) {
   const popupElement = document.createElement('div');
   popupElement.classList.add('upload-popup');
@@ -20,8 +21,8 @@ export function createUploadPopupElement(
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
     min-width: 300px;
     max-width: 400px;
-    transform: translate(-50%, -100%);
-    margin-top: -10px;
+    ${isLeaflet ? 'transform: translateY(-100%);' : 'transform: translate(-50%, -100%);'}
+    margin-top: ${isLeaflet ? '-10px' : '-10px'};
     pointer-events: auto;
   `;
 

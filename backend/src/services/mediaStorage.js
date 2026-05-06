@@ -218,7 +218,7 @@ class MediaStorageService {
 
       // 3. Создаём запись в БД
       const { data: image, error: imageError } = await supabaseAdmin
-        .from('route_images')
+        .from('images')
         .insert(imageData)
         .select()
         .single();
@@ -268,7 +268,7 @@ class MediaStorageService {
     await this.deleteFileFromStorage('Images', fileName);
 
     const { error: deleteError } = await supabaseAdmin
-      .from('route_images')
+      .from('images')
       .delete()
       .eq('id', imageId);
 

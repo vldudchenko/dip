@@ -1,19 +1,4 @@
 /**
- * Константы для отображения сложности маршрутов
- */
-export const DIFFICULTY_LABELS = {
-  easy: 'Лёгкий',
-  medium: 'Средний',
-  hard: 'Сложный'
-};
-
-export const DIFFICULTY_CLASSES = {
-  easy: 'difficulty-easy',
-  medium: 'difficulty-medium',
-  hard: 'difficulty-hard'
-};
-
-/**
  * Константы для отображения статусов прохождений
  */
 export const STATUS_LABELS = {
@@ -36,12 +21,10 @@ export const STATUS_CLASSES = {
  * Типы транспорта между контрольными точками
  */
 export const TRANSPORT_OPTIONS = [
-  { value: 'walking', label: '🚶 Пешком',        color: '#059669', bgClass: 'transport-walking' },
-  { value: 'bus',     label: '🚌 Автобус',        color: '#2563eb', bgClass: 'transport-bus' },
-  { value: 'train',   label: '🚂 Электричка',     color: '#7c3aed', bgClass: 'transport-train' },
-  { value: 'driving', label: '🚗 На авто',        color: '#d97706', bgClass: 'transport-driving' },
-  { value: 'bicycle', label: '🚲 Велосипед',      color: '#0891b2', bgClass: 'transport-bicycle' },
-  { value: 'boat',    label: '🚢 Паром / Лодка',  color: '#0d9488', bgClass: 'transport-boat' },
+  { value: 'walking', label: 'Пешком', color: '#059669', bgClass: 'transport-walking' },
+  { value: 'bus', label: 'Автобус', color: '#2563eb', bgClass: 'transport-bus' },
+  { value: 'train', label: 'Электричка', color: '#7c3aed', bgClass: 'transport-train' },
+  { value: 'boat', label: 'Паром / Лодка', color: '#3bb1ff', bgClass: 'transport-boat' },
 ];
 
 export const TRANSPORT_MAP = Object.fromEntries(
@@ -52,13 +35,14 @@ export const TRANSPORT_MAP = Object.fromEntries(
  * Типы остановки в контрольной точке
  */
 export const STOP_TYPE_OPTIONS = [
-  { value: 'sightseeing',   label: '🏛️ Достопримечательность' },
-  { value: 'accommodation', label: '🏨 Ночёвка / Отель' },
-  { value: 'camp',          label: '⛺ Лагерь / Стоянка' },
-  { value: 'food',          label: '🍽️ Еда / Кафе' },
-  { value: 'transport_hub', label: '🚉 Транспортный узел' },
-  { value: 'viewpoint',     label: '🌄 Смотровая площадка' },
-  { value: 'rest',          label: '☕ Отдых' },
+  { value: 'none', label: 'Промежуточная точка' },
+  { value: 'sightseeing', label: 'Достопримечательность' },
+  { value: 'accommodation', label: 'Ночёвка' },
+  { value: 'camp', label: 'Лагерь' },
+  { value: 'food', label: 'Еда / Кафе' },
+  { value: 'viewpoint', label: 'Смотровая площадка' },
+  { value: 'rest', label: 'Отдых' },
+  { value: 'finish', label: 'Финиш' },
 ];
 
 export const STOP_TYPE_MAP = Object.fromEntries(
@@ -68,14 +52,6 @@ export const STOP_TYPE_MAP = Object.fromEntries(
 /**
  * Хелперы для получения меток и классов
  */
-export const getDifficultyLabel = (difficulty) => {
-  return DIFFICULTY_LABELS[difficulty] || difficulty;
-};
-
-export const getDifficultyClass = (difficulty) => {
-  return DIFFICULTY_CLASSES[difficulty] || '';
-};
-
 export const getStatusLabel = (status) => {
   return STATUS_LABELS[status] || status;
 };

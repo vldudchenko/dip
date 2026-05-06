@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { API_URL } from '../utils/constants';
-
-const DIFFICULTY_LABELS = {
-  easy: 'Лёгкий',
-  medium: 'Средний',
-  hard: 'Сложный'
-};
-
-const DIFFICULTY_CLASSES = {
-  easy: 'difficulty-easy',
-  medium: 'difficulty-medium',
-  hard: 'difficulty-hard'
-};
+import { api } from '../api';
+import { RouteCard } from '../components/RouteCard';
+import { SkeletonCard } from '../components/SkeletonCard';
+import '../styles/homePage.css';
 
 /**
  * Главная страница
@@ -25,103 +16,89 @@ export const HomePage = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchRoutes = async () => {
+      // Сбрасываем ошибку и ставим загрузку перед новым запросом
+      setError(null);
+      setLoading(true);
+
       try {
         const response = await fetch(`${API_URL}/routes`);
         if (!response.ok) {
           throw new Error('Не удалось загрузить маршруты');
         }
         const data = await response.json();
+        
+        if (!isMounted) return;
         setRoutes(data);
 
-        // Загружаем информацию о гидах для каждого маршрута
+        // Загружаем информацию о гидах для каждого маршрута, используя кэшированный API
         const guideIds = [...new Set(data.map(route => route.guide_id))];
         const guidesData = {};
-        
+
         await Promise.all(
           guideIds.map(async (guideId) => {
             try {
-              const guideResponse = await fetch(`${API_URL}/users/${guideId}`);
-              if (guideResponse.ok) {
-                guidesData[guideId] = await guideResponse.json();
+              // Используем api.fetchUser, который умеет кэшировать данные
+              const userData = await api.fetchUser(guideId);
+              if (userData && isMounted) {
+                guidesData[guideId] = userData;
               }
             } catch (err) {
               console.error(`Не удалось загрузить гида ${guideId}:`, err);
             }
           })
         );
-        
-        setGuides(guidesData);
+
+        if (isMounted) {
+          setGuides(prev => ({ ...prev, ...guidesData }));
+        }
       } catch (err) {
-        setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchRoutes();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  if (loading) {
-    return <div className="home-page">Загрузка маршрутов...</div>;
-  }
-
-  if (error) {
-    return <div className="home-page">Ошибка: {error}</div>;
-  }
 
   return (
     <div className="home-page">
+      {error && <div className="error-container" style={{ marginBottom: '1rem' }}>Ошибка: {error}</div>}
       <div className="home-header">
-        <h1>Все маршруты</h1>
-        <p className="routes-count">Найдено маршрутов: {routes.length}</p>
+        <h1>Исследуйте новые горизонты</h1>
+        <h1>Загружайте свои впечетления от походов</h1>
       </div>
 
-      {routes.length === 0 ? (
-        <div className="no-routes">
-          <p>Пока нет доступных маршрутов</p>
-        </div>
-      ) : (
-        <div className="routes-grid">
-          {routes.map((route) => {
-            const guide = guides[route.guide_id];
-            return (
-              <div key={route.id} className="route-card-main">
-                <div className="route-card-header">
-                  <h3 className="route-card-title">{route.title}</h3>
-                  <span className={`route-card-difficulty ${DIFFICULTY_CLASSES[route.difficulty]}`}>
-                    {DIFFICULTY_LABELS[route.difficulty]}
-                  </span>
-                </div>
-
-                {route.description && (
-                  <p className="route-card-description">{route.description}</p>
-                )}
-
-
-
-                {guide && guide.login && (
-                  <div className="route-card-guide">
-                    <span className="label">Гид:</span>
-                    <Link to={`/guide/${guide.login}`} className="guide-link">
-                      {guide.login}
-                    </Link>
-                  </div>
-                )}
-
-                <div className="route-card-footer">
-                  <Link 
-                    to={`/route/${route.id}`} 
-                    className="btn-view-route"
-                  >
-                    Подробнее
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="routes-grid skeleton-grid-fix">
+        {loading ? (
+          [...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))
+        ) : routes.length === 0 ? (
+          <div className="no-routes">
+            <p>Пока нет доступных маршрутов</p>
+          </div>
+        ) : (
+          routes.map((route) => (
+            <RouteCard
+              key={route.id}
+              route={route}
+              guide={guides[route.guide_id]}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 };

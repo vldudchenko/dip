@@ -36,35 +36,18 @@ export function Header({ user, onLogin, onLogout, editMode, onToggleEditMode }) 
           <img src="/favicon.ico" alt="GeoClips" className="logo-icon" />
           GeoClips
         </h1>
-
-        <div className="user-info">
+        <div className="header-user-info">
           {user ? (
             <>
-              <div className="user-profile" onClick={handleProfileClick} style={{ cursor: 'pointer' }}>
+              <div className="user-profile" onClick={handleProfileClick}>
                 {user.avatar && (
                   <img src={user.avatar} alt={user.login} className="user-avatar" />
                 )}
-                <span className="user-login">{user.login}</span>
               </div>
-              <div className="mode-slider">
-                <div className="slider-wrapper">
-                  <span className="mode-label">Режим</span>
-                  <div className="slider-container">
-                    <span className={`slider-option ${!editMode ? 'active' : ''}`}>Просмотр</span>
-                    <label className="slider-toggle">
-                      <input type="checkbox" checked={editMode} onChange={onToggleEditMode} />
-                      <span className="slider-track"></span>
-                      <span className="slider-thumb"></span>
-                    </label>
-                    <span className={`slider-option ${editMode ? 'active' : ''}`}>Загрузка</span>
-                  </div>
-                </div>
-              </div>
-
               <button className="logout-button" onClick={handleLogoutClick}>Выйти</button>
             </>
           ) : (
-            <button onClick={onLogin}>
+            <button onClick={onLogin} className="login-button-reset">
               <svg width="228" height="44" viewBox="0 0 228 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 22C0 12.6177 0 7.92655 2.47976 4.69486C3.11817 3.86288 3.86288 3.11817 4.69486 2.47976C7.92655 0 12.6177 0 22 0H206C215.382 0 220.073 0 223.305 2.47976C224.137 3.11817 224.882 3.86288 225.52 4.69486C228 7.92655 228 12.6177 228 22C228 31.3823 228 36.0735 225.52 39.3051C224.882 40.1371 224.137 40.8818 223.305 41.5202C220.073 44 215.382 44 206 44H22C12.6177 44 7.92655 44 4.69486 41.5202C3.86288 40.8818 3.11817 40.1371 2.47976 39.3051C0 36.0735 0 31.3823 0 22Z" fill="black"></path>
                 <rect x="28" y="10" width="24" height="24" rx="12" fill="#FC3F1D"></rect>

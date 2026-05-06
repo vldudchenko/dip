@@ -9,6 +9,7 @@ export const ConfirmModal = ({
   message, 
   confirmLabel = 'Подтвердить',
   cancelLabel = 'Отмена',
+  confirmVariant = 'delete', // 'delete', 'save', 'primary'
   onConfirm, 
   onCancel 
 }) => {
@@ -27,7 +28,7 @@ export const ConfirmModal = ({
             {cancelLabel}
           </button>
           <button
-            className="modal-button modal-button--delete"
+            className={`modal-button modal-button--${confirmVariant}`}
             onClick={onConfirm}
           >
             {confirmLabel}

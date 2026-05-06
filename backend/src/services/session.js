@@ -114,8 +114,15 @@ class SessionService {
         *,
         route:routes (
           id,
-          title,
-          difficulty
+          title
+        ),
+        participants:session_participants (
+          user_id,
+          users:users (
+            id,
+            login,
+            avatar
+          )
         )
       `)
       .eq('guide_id', guideId)
@@ -186,7 +193,7 @@ class SessionService {
         session_id: sessionId,
         user_id: userId
       })
-      .select()
+      .select('id')
       .single();
 
     if (error) throw error;
@@ -236,8 +243,7 @@ class SessionService {
           participants_count,
           route:routes (
             id,
-            title,
-            difficulty
+            title
           ),
           guide:users (
             id,

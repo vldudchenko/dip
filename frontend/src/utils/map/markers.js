@@ -3,21 +3,21 @@ import { createAvatarElement } from './helpers';
 // Иконки для типов транспорта
 const TRANSPORT_ICONS = {
   walking: '🚶',
-  bus:     '🚌',
-  train:   '🚂',
+  bus: '🚌',
+  train: '🚂',
   driving: '🚗',
   bicycle: '🚲',
-  boat:    '🚢',
+  boat: '🚢',
 };
 
 // Цвета для типов транспорта
 const TRANSPORT_COLORS = {
   walking: '#059669',
-  bus:     '#2563eb',
-  train:   '#7c3aed',
+  bus: '#2563eb',
+  train: '#7c3aed',
   driving: '#d97706',
   bicycle: '#0891b2',
-  boat:    '#0d9488',
+  boat: '#0d9488',
 };
 
 /**
@@ -26,7 +26,7 @@ const TRANSPORT_COLORS = {
 export function createVideoMarkerElement(video, onClick, isHighlighted = false) {
   const avatarUrl = video.users?.avatar;
   const login = video.users?.login;
-  
+
   const element = createAvatarElement(avatarUrl, login, isHighlighted);
   element.onclick = onClick;
   return element;
@@ -82,19 +82,74 @@ export function createVideoMarker(video, navigate, editModeRef, currentUser) {
 }
 
 /**
+ * Создаёт элемент маркера для точки маршрута
+ * @param {Object} pointData - данные точки
+ * @param {boolean} isStart - является ли точкой старта
+ * @param {string} transportColor - цвет предыдущего перегона
+ */
+export function createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel) {
+  const el = document.createElement('div');
+  el.className = 'route-point-marker';
+  el.style.position = 'relative';
+  el.style.transform = 'translate(-50%, -50%)';
+  el.style.zIndex = '10';
+
+  const stopType = pointData.stop_type;
+  const isFinish = stopType === 'finish';
+
+  let bgColor = transportColor || '#059669';
+  if (isStart) bgColor = '#059669'; // Зеленый для старта
+  if (isFinish) bgColor = '#dc2626'; // Красный для финиша
+
+  // Если это значимая остановка или старт/финиш — делаем маркер с текстом (pill shape)
+  if (isStart || isFinish || (stopType && stopType !== 'none' && stopType !== 'start')) {
+    el.style.backgroundColor = bgColor;
+    el.style.color = 'white';
+    el.style.padding = '4px 10px';
+    el.style.borderRadius = '14px';
+    el.style.fontSize = '12px';
+    el.style.fontWeight = 'bold';
+    el.style.whiteSpace = 'nowrap';
+    el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+    el.style.border = '2px solid white';
+
+    if (isStart) {
+      el.innerHTML = 'Старт';
+    } else if (isFinish) {
+      el.innerHTML = 'Финиш';
+    } else {
+      el.innerHTML = stopTypeLabel || stopType;
+    }
+  } else {
+    // Просто транзитная точка (кружок)
+    el.style.width = '14px';
+    el.style.height = '14px';
+    el.style.backgroundColor = bgColor;
+    el.style.border = '2px solid white';
+    el.style.borderRadius = '50%';
+    el.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)';
+  }
+
+  el.style.cursor = 'pointer';
+
+  return el;
+
+}
+
+/**
  * Создаёт красивый элемент маркера для точки маршрута
  */
 export function createRouteMarkerElement({ index, transport, isActive = false, isViewOnly = false }) {
   const element = document.createElement('div');
   element.className = `route-marker ${isActive ? 'active' : ''} ${isViewOnly ? 'view-only' : ''}`;
-  
-  const transportIcon = TRANSPORT_ICONS[transport] || '📍';
+
+  const transportIcon = TRANSPORT_ICONS[transport] || '';
   const transportColor = TRANSPORT_COLORS[transport] || '#7c3aed';
   const activeColor = isViewOnly ? transportColor : '#5b21b6';
   const baseColor = isActive ? activeColor : (isViewOnly ? transportColor : '#7c3aed');
-  
+
   const size = isViewOnly ? 30 : 40;
-  
+
   element.style.cssText = `
     position: relative;
     width: ${size}px;

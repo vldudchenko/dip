@@ -14,6 +14,17 @@ CREATE TABLE public.comments (
   CONSTRAINT comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT comments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.comments(id)
 );
+CREATE TABLE public.images (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  route_id uuid,
+  user_id uuid,
+  file_url text NOT NULL,
+  original_name text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT images_pkey PRIMARY KEY (id),
+  CONSTRAINT route_images_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id),
+  CONSTRAINT route_images_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.likes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   video_id uuid NOT NULL,
@@ -23,16 +34,19 @@ CREATE TABLE public.likes (
   CONSTRAINT likes_video_id_fkey FOREIGN KEY (video_id) REFERENCES public.videos(id),
   CONSTRAINT likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
-CREATE TABLE public.route_images (
+CREATE TABLE public.route_comments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  route_id uuid,
-  user_id uuid,
-  file_url text NOT NULL,
-  original_name text,
+  route_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  parent_id uuid,
+  content text NOT NULL,
+  type text NOT NULL DEFAULT 'review' CHECK (type IN ('review', 'question')),
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT route_images_pkey PRIMARY KEY (id),
-  CONSTRAINT route_images_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id),
-  CONSTRAINT route_images_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT route_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT route_comments_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id),
+  CONSTRAINT route_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT route_comments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.route_comments(id)
 );
 CREATE TABLE public.route_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -53,14 +67,23 @@ CREATE TABLE public.route_sessions (
   CONSTRAINT route_sessions_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id),
   CONSTRAINT route_sessions_guide_id_fkey FOREIGN KEY (guide_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.route_views (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  route_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT route_views_pkey PRIMARY KEY (id),
+  CONSTRAINT route_views_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id),
+  CONSTRAINT route_views_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.routes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   guide_id uuid,
   title text NOT NULL,
-  difficulty text NOT NULL CHECK (difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])),
   description text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  path_data jsonb,
   CONSTRAINT routes_pkey PRIMARY KEY (id),
   CONSTRAINT routes_guide_id_fkey FOREIGN KEY (guide_id) REFERENCES public.users(id)
 );

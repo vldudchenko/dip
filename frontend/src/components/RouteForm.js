@@ -111,20 +111,12 @@ export const RouteForm = ({
             type="text"
             value={formData.title}
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            maxLength={100}
             required
           />
-        </div>
-        <div className="form-col">
-          <label>Сложность *</label>
-          <select
-            value={formData.difficulty}
-            onChange={(e) => setFormData({ ...formData, difficulty: e.target.value })}
-            required
-          >
-            <option value="easy">Лёгкий</option>
-            <option value="medium">Средний</option>
-            <option value="hard">Сложный</option>
-          </select>
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+            {formData.title?.length || 0}/100
+          </div>
         </div>
       </div>
       <div className="form-row">
@@ -136,6 +128,7 @@ export const RouteForm = ({
             value={formData.description || ''}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder="Описание..."
+            maxLength={1000}
             style={{
               resize: "none",
               overflow: "hidden",
@@ -143,6 +136,9 @@ export const RouteForm = ({
               minHeight: "unset", // Отменяем min-height из CSS, чтобы работал авто-ресайз
             }}
           />
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+            {formData.description?.length || 0}/1000
+          </div>
         </div>
       </div>
 
@@ -153,7 +149,6 @@ export const RouteForm = ({
             Отмена
           </button>
         )}
-        <p className="form-hint">После сохранения вы сможете нарисовать путь маршрута на карте и добавить контрольные точки.</p>
         <button type="submit" className="btn-submit" disabled={loading}>
           {loading ? 'Сохранение...' : submitLabel}
         </button>

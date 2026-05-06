@@ -1,0 +1,115 @@
+/* Стили для скелетонов, расширяющие базовые стили карточки */
+
+.skeleton-grid-fix {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  gap: 1.5rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 2rem;
+}
+
+.skeleton-card-override {
+  pointer-events: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-card-override .card-media-section {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  border: none;
+  height: 220px;
+}
+
+.skeleton-title {
+  height: 1.125rem;
+  width: 75%;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.skeleton-line {
+  height: 0.85rem;
+  background: #e5e7eb;
+  /* Сделал чуть темнее для лучшего контраста */
+  margin-bottom: 0.55rem;
+  border-radius: 2px;
+  width: 100%;
+  display: block;
+}
+
+.skeleton-line:last-child {
+  margin-bottom: 0;
+}
+
+.skeleton-line.w-80 {
+  width: 80%;
+}
+
+.skeleton-line.w-60 {
+  width: 60%;
+}
+
+.skeleton-name {
+  height: 0.875rem;
+  width: 80px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.skeleton-label {
+  height: 0.75rem;
+  width: 40px;
+  background: #f3f4f6;
+  border-radius: 2px;
+  margin-top: 4px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.skeleton-card-override .card-guide-avatar {
+  background: #e5e7eb;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-btn {
+  background: #e5e7eb !important;
+  border: none !important;
+  width: 104px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0,
+      rgba(255, 255, 255, 0.2) 20%,
+      rgba(255, 255, 255, 0.5) 60%,
+      rgba(255, 255, 255, 0));
+  animation: shimmer 1.5s infinite;
+  content: '';
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

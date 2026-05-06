@@ -1,5 +1,6 @@
 import express from 'express';
 import { routesService } from '../services/routes.js';
+import { requireAuth } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -36,6 +37,31 @@ router.get('/:id', async (req, res) => {
     res.json(route);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/routes/:id/stats - Получение статистики маршрута
+ */
+router.get('/:id/stats', async (req, res) => {
+  try {
+    const stats = await routesService.getRouteStats(req.params.id);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/routes/:id/view - Регистрация уникального просмотра маршрута
+ */
+router.post('/:id/view', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const result = await routesService.addView(req.params.id, userId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message, viewed: false });
   }
 });
 

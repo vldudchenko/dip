@@ -1,0 +1,584 @@
+.route-path-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px);
+  width: 100%;
+  position: relative;
+}
+
+
+.route-path-header {
+  padding: 1rem 2rem;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+}
+
+.route-path-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.025em;
+}
+
+.route-path-controls {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.route-path-main {
+  display: flex;
+  height: 1000px;
+  overflow: hidden;
+  margin-top: 1rem;
+  gap: 1rem;
+}
+
+.route-path-map-container {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+/* Leaflet карта в редакторе маршрута */
+.route-path-map-container .leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  border-radius: 16px;
+}
+
+/* map-with-toggle занимает всю высоту контейнера */
+.route-path-map-container .map-with-toggle {
+  height: 100%;
+}
+
+.route-path-map-container .map-wrapper {
+  height: 100%;
+  margin-bottom: 0;
+  border-radius: 16px;
+}
+
+
+.route-path-sidebar {
+  height: 1000px;
+  width: 350px;
+  /* Фиксированная ширина для стабильности, рассчитанная под длинный текст */
+  min-width: 350px;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.03);
+  z-index: 10;
+  border-radius: 16px;
+}
+
+
+
+.sidebar-header {
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sidebar-header::before {
+  content: '📍';
+}
+
+.sidebar-content {
+  padding: 1.25rem;
+  flex: 1;
+  font-size: 0.9rem;
+  /* Smaller font in sidebar */
+}
+
+/* Timeline/Point List */
+.point-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  /* Space between items without connectors */
+}
+
+.point-item-container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Point Item Card */
+.point-item {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+
+.point-item:hover {
+  border-color: #7c3aed;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.08);
+}
+
+.point-item.is-picking {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+}
+
+.point-type-info {
+  margin-top: 0;
+}
+
+.point-badge-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #f3f4f6;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s;
+}
+
+.point-badge-trigger:hover {
+  background: #e5e7eb;
+}
+
+.badge-icon {
+  font-size: 1.1rem;
+}
+
+.badge-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.chevron {
+  font-size: 0.6rem;
+  color: #9ca3af;
+  margin-left: 0.25rem;
+}
+
+/* Stop Type Picker Overlay */
+.stop-type-picker {
+  margin-top: 1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.2s ease-out;
+}
+
+.picker-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin-bottom: 0.75rem;
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.picker-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.picker-option:hover {
+  background: #f9fafb;
+  border-color: #7c3aed;
+}
+
+.picker-option.active {
+  background: #f5f3ff;
+  border-color: #7c3aed;
+}
+
+.opt-icon {
+  font-size: 1rem;
+}
+
+.opt-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.point-item.is-start {
+  border-left: 4px solid #059669;
+  background: #f0fdf4;
+}
+
+.point-item.is-finish {
+  border-left: 4px solid #dc2626;
+  background: #fef2f2;
+}
+
+.point-index {
+  width: 32px;
+  height: 32px;
+  background: #7c3aed;
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.is-start .point-index {
+  background: #059669;
+}
+
+.is-finish .point-index {
+  background: #dc2626;
+}
+
+.point-content {
+  flex: 1;
+  padding-right: 2rem;
+  /* Оставляем место для кнопки удаления */
+}
+
+.point-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.point-static-label {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+.point-static-label.is-finish {
+  color: #991b1b;
+}
+
+.point-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.point-form-group label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+
+.point-form-group select {
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+
+.point-form-group select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+
+.point-actions {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.btn-delete-point {
+  width: 24px;
+  height: 24px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete-point:hover {
+  background: #fecaca;
+  color: #7f1d1d;
+  transform: scale(1.1);
+}
+
+.empty-points {
+  color: #6b7280;
+  text-align: center;
+  padding: 3rem 1rem;
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: #f9fafb;
+  border: 2px dashed #e5e7eb;
+  border-radius: 16px;
+}
+
+.empty-points::before {
+  content: '🗺️';
+  font-size: 3rem;
+  opacity: 0.5;
+}
+
+.route-path-instructions {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.btn-quick-action {
+  background: #fff;
+  border: 1px solid #7c3aed;
+  color: #7c3aed;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-quick-action:hover {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.modal-title {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.modal-message {
+  margin: 0 0 2rem 0;
+  font-size: 0.95rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.modal-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  flex: 1;
+}
+
+.modal-button--cancel {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.modal-button--cancel:hover {
+  background: #e5e7eb;
+}
+
+.modal-button--save {
+  background: #7c3aed;
+  color: white;
+}
+
+.modal-button--save:hover {
+  background: #6d28d9;
+}
+
+.modal-button--delete {
+  background: #dc2626;
+  color: white;
+}
+
+.modal-button--delete:hover {
+  background: #b91c1c;
+}
+
+
+/* Point Inserter */
+.point-item-container {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Раздвигаем карточки симметрично при наведении на область вставки */
+.point-item-container:has(+ .point-inserter-wrapper:hover) {
+  transform: translateY(-12px);
+}
+
+.point-inserter-wrapper:hover+.point-item-container {
+  transform: translateY(12px);
+}
+
+.point-inserter-wrapper {
+  position: relative;
+  height: 24px;
+  margin: -12px 0;
+  /* Схлопываем пространство, чтобы карточки были вплотную */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: all 0.2s ease;
+}
+
+.point-inserter-wrapper:hover {
+  /* Мы не меняем высоту, чтобы не дергать scroll и flow, 
+     раздвижка идет за счет transform у соседей */
+}
+
+.point-inserter {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.point-inserter:hover {
+  opacity: 1;
+}
+
+.inserter-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(124, 58, 237, 0.3), transparent);
+}
+
+.inserter-plus {
+  width: 18px;
+  height: 18px;
+  background: #7c3aed;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  margin: 0 8px;
+  box-shadow: 0 2px 4px rgba(124, 58, 237, 0.4);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.point-inserter:hover .inserter-plus {
+  transform: scale(1.15);
+}
+
+
+.point-item-container {
+  animation: fadeIn 0.3s ease-out forwards;
+}

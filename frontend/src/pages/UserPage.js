@@ -67,7 +67,7 @@ export const UserPage = () => {
 
   return (
     <div className="user-page">
-      <h1>Профиль пользователя: {user.login}</h1>
+      <h1>Профиль пользователя</h1>
 
       <img
         src={avatarError || !user.avatar ? defaultAvatar : user.avatar}
@@ -77,8 +77,10 @@ export const UserPage = () => {
       />
 
       <div className="user-info">
-        <p><strong>Email:</strong> {user.email || 'Не указан'}</p>
-        <p><strong>Статус гида:</strong> {user.is_guide ? 'Да' : 'Нет'}</p>
+        <strong>{user.login}</strong>
+        <p>{user.email}</p>
+        <p>Количество прохождений маршрутов</p>
+        <p><strong>Гид? </strong> {user.is_guide ? 'Да' : 'Нет'}</p>
       </div>
 
       <button

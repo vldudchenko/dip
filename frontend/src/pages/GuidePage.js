@@ -2,13 +2,14 @@ import { API_URL } from '../utils/constants';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import defaultAvatar from '../static/Avatar.png';
-import { RouteForm } from '../components/RouteForm';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { 
-  getDifficultyLabel, 
-  getDifficultyClass, 
-  getStatusLabel, 
-  getStatusClass 
+import { SessionItem } from '../components/SessionItem';
+import { RouteForm } from '../components/RouteForm';
+import {
+  getStatusLabel,
+  getStatusClass,
+  STATUS_LABELS,
+  STATUS_CLASSES
 } from '../utils/routeConstants';
 
 /**
@@ -19,18 +20,21 @@ export const GuidePage = () => {
   const { login } = useParams();
   const navigate = useNavigate();
   const currentUserId = localStorage.getItem('user_id');
-  
+
   const [guide, setGuide] = useState(null);
   const [routes, setRoutes] = useState([]);
-  const [sessions, setSessions] = useState({});
+  const [guideSessions, setGuideSessions] = useState([]);
+  const [userJoinedSessions, setUserJoinedSessions] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [avatarError, setAvatarError] = useState(false);
-  
-  // Состояние для работы с маршрутами
+
+  // Состояние для работы с маршрутами и прохождениями
+  const [activeTab, setActiveTab] = useState('routes');
   const [editingRoute, setEditingRoute] = useState(null);
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [routeToDelete, setRouteToDelete] = useState(null);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,14 +58,26 @@ export const GuidePage = () => {
           const routesData = await routesResponse.json();
           setRoutes(routesData);
 
-          const sessionsMap = {};
-          for (const route of routesData) {
-            const sessionsResponse = await fetch(`${API_URL}/sessions/route/${route.id}`);
-            if (sessionsResponse.ok) {
-              sessionsMap[route.id] = await sessionsResponse.json();
+          // Загружаем сессии гида (все, где он является организатором)
+          const sessionsResponse = await fetch(`${API_URL}/sessions/guide/${userData.id}`);
+          if (sessionsResponse.ok) {
+            const sessionsData = await sessionsResponse.json();
+            setGuideSessions(sessionsData);
+
+            if (currentUserId) {
+              const joinedSessions = new Set();
+              for (const session of sessionsData) {
+                const checkResponse = await fetch(
+                  `${API_URL}/sessions/${session.id}/is-joined?userId=${currentUserId}`
+                );
+                if (checkResponse.ok) {
+                  const { isJoined } = await checkResponse.json();
+                  if (isJoined) joinedSessions.add(session.id);
+                }
+              }
+              setUserJoinedSessions(joinedSessions);
             }
           }
-          setSessions(sessionsMap);
         }
       } catch (err) {
         setError(err.message);
@@ -77,12 +93,6 @@ export const GuidePage = () => {
     setShowAddRoute(false);
     setEditingRoute(null);
     refreshRoutes();
-    
-    // Если это создание нового маршрута (не редактирование старого),
-    // перенаправляем на страницу рисования пути на карте
-    if (result && result.id && !editingRoute) {
-      navigate(`/route/${result.id}/edit-path`);
-    }
   };
 
   const refreshRoutes = async () => {
@@ -94,7 +104,7 @@ export const GuidePage = () => {
 
   const handleDeleteRoute = async () => {
     if (!routeToDelete) return;
-    
+
     try {
       const response = await fetch(`${API_URL}/routes/${routeToDelete}`, {
         method: 'DELETE'
@@ -112,13 +122,132 @@ export const GuidePage = () => {
     }
   };
 
+  const handleJoinSession = async (e, sessionId, routeId) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось записаться на сессию');
+      }
+
+      setUserJoinedSessions(prev => new Set([...prev, sessionId]));
+      refreshGuideSessions();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleLeaveSession = async (e, sessionId, routeId) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}/leave`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось отписаться от сессии');
+      }
+
+      setUserJoinedSessions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sessionId);
+        return newSet;
+      });
+      refreshGuideSessions();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const refreshGuideSessions = async () => {
+    if (!guide) return;
+    const sessionsResponse = await fetch(`${API_URL}/sessions/guide/${guide.id}`);
+    if (sessionsResponse.ok) {
+      setGuideSessions(await sessionsResponse.json());
+    }
+  };
+
   const startEditingRoute = (route) => {
     setEditingRoute({
       id: route.id,
       title: route.title,
-      description: route.description || '',
-      difficulty: route.difficulty
+      description: route.description || ''
     });
+  };
+
+  const handleEditSession = async (sessionId, data) => {
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: data.start_date,
+          end_date: data.end_date || data.start_date,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          price: Number(data.price),
+          min_people: Number(data.min_people),
+          max_people: Number(data.max_people)
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось обновить сессию');
+      }
+
+      refreshGuideSessions();
+    } catch (err) {
+      console.error('Ошибка обновления сессии:', err.message);
+    }
+  };
+
+  const handleStatusChange = async (sessionId, routeId, newStatus) => {
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось обновить статус');
+      }
+
+      refreshGuideSessions();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!sessionToDelete) return;
+
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionToDelete.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось удалить сессию');
+      }
+
+      setSessionToDelete(null);
+      refreshGuideSessions();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   if (loading) {
@@ -141,15 +270,31 @@ export const GuidePage = () => {
 
         <div className="guide-info">
           <h1>{guide.login}</h1>
-          <p className="guide-email"><strong>Email:</strong> {guide.email || 'Не указан'}</p>
-          <p className="guide-status">✓ Сертифицированный гид</p>
+          <p className="guide-email"><strong></strong> {guide.email}</p>
         </div>
       </div>
 
       <div className="routes-section">
-        <div className="routes-header">
-          <h2>Маршруты гида</h2>
-          {currentUserId === guide.id && (
+        <div className="routes-header-tabs">
+          <div className="tabs-container">
+            <button
+              className={`tab-btn ${activeTab === 'routes' ? 'active' : ''}`}
+              onClick={() => setActiveTab('routes')}
+            >
+              <span>Маршруты</span>
+              {routes.length > 0 && <span className="tab-count">{routes.length}</span>}
+              {activeTab === 'routes' && <div className="tab-underline"></div>}
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'sessions' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sessions')}
+            >
+              <span>Прохождения</span>
+              {guideSessions.length > 0 && <span className="tab-count">{guideSessions.length}</span>}
+              {activeTab === 'sessions' && <div className="tab-underline"></div>}
+            </button>
+          </div>
+          {currentUserId === guide.id && activeTab === 'routes' && (
             <button
               className="btn-add-route"
               onClick={() => {
@@ -162,111 +307,114 @@ export const GuidePage = () => {
           )}
         </div>
 
-        {showAddRoute && currentUserId === guide.id && (
-          <RouteForm
-            initialValues={{
-              title: '',
-              description: '',
-              difficulty: 'easy'
-            }}
-            onSubmit={handleRouteSaved}
-            onCancel={() => setShowAddRoute(false)}
-            submitLabel="Создать маршрут"
-            guideId={currentUserId}
-          />
-        )}
+        {activeTab === 'routes' ? (
+          <>
+            {showAddRoute && currentUserId === guide.id && (
+              <RouteForm
+                initialValues={{
+                  title: '',
+                  description: ''
+                }}
+                onSubmit={handleRouteSaved}
+                onCancel={() => setShowAddRoute(false)}
+                submitLabel="Создать маршрут"
+                guideId={currentUserId}
+              />
+            )}
 
-        {routes.length === 0 ? (
-          <p className="no-routes">У этого гида пока нет маршрутов</p>
-        ) : (
-          <div className="routes-list">
-            {routes.map((route) => (
-              <div key={route.id} className="route-card">
-                {editingRoute?.id === route.id ? (
-                  <div className="route-card-editing" onClick={(e) => e.stopPropagation()}>
-                    <RouteForm
-                      initialValues={editingRoute}
-                      onSubmit={handleRouteSaved}
-                      onCancel={() => setEditingRoute(null)}
-                      submitLabel="Сохранить"
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className="route-header" onClick={() => navigate(`/route/${route.id}`)} style={{ cursor: 'pointer' }}>
-                      <h3 className="route-title">{route.title}</h3>
-                      <span className={`route-difficulty ${getDifficultyClass(route.difficulty)}`}>
-                        {getDifficultyLabel(route.difficulty)}
-                      </span>
-                    </div>
-
-                    <div className="route-body" onClick={(e) => e.stopPropagation()}>
-                      {route.description && (
-                        <p className="route-description">{route.description}</p>
-                      )}
-
-
-
-                      {sessions[route.id] && sessions[route.id].length > 0 && (
-                        <div className="route-sessions-preview">
-                          <span className="sessions-label">📅 Запланировано прохождений: {sessions[route.id].length}</span>
-                          <div className="sessions-mini-list">
-                            {sessions[route.id].slice(0, 3).map((session, idx) => (
-                              <div key={idx} className="session-mini-item">
-                                <span className={`session-mini-status ${getStatusClass(session.status)}`}>
-                                  {getStatusLabel(session.status)}
-                                </span>
-                                <span className="session-mini-date">
-                                  {new Date(session.start_date).toLocaleDateString('ru-RU')}
-                                  {session.end_date && session.end_date !== session.start_date && (
-                                    <> — {new Date(session.end_date).toLocaleDateString('ru-RU')}</>
-                                  )}
-                                </span>
-                                <span className="session-mini-participants">
-                                  💰 {session.price} ₽ | 👥 {session.participants_count}/{session.max_people}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {currentUserId === guide.id && (
-                      <div className="route-card-actions">
-                        <button
-                          className="btn btn--secondary btn--small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditingRoute(route);
-                          }}
-                        >
-                          ✏️ Редактировать
-                        </button>
-                        <button
-                          className="btn btn--secondary btn--small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/route/${route.id}/edit-path`);
-                          }}
-                        >
-                          🗺️ Карта маршрута
-                        </button>
-                        <button
-                          className="btn btn--danger btn--small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRouteToDelete(route.id);
-                          }}
-                        >
-                          🗑️ Удалить
-                        </button>
+            {routes.length === 0 ? (
+              <p className="no-routes">У этого гида пока нет маршрутов</p>
+            ) : (
+              <div className="routes-list">
+                {routes.map((route) => (
+                  <div key={route.id} className="route-card">
+                    {editingRoute?.id === route.id ? (
+                      <div className="route-card-editing" onClick={(e) => e.stopPropagation()}>
+                        <RouteForm
+                          initialValues={editingRoute}
+                          onSubmit={handleRouteSaved}
+                          onCancel={() => setEditingRoute(null)}
+                          submitLabel="Сохранить"
+                        />
                       </div>
+                    ) : (
+                      <>
+                        <div className="route-header" onClick={() => navigate(`/route/${route.id}`)}>
+                          <h3 className="route-title">{route.title}</h3>
+                        </div>
+
+                        <div className="route-body">
+                          {route.description && (
+                            <p className="route-description" onClick={() => navigate(`/route/${route.id}`)}>{route.description}</p>
+                          )}
+                        </div>
+                        {currentUserId === guide.id && (
+                          <div className="route-card-actions">
+                            <button
+                              className="btn btn--secondary btn--small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditingRoute(route);
+                              }}
+                            >
+                              Редактировать
+                            </button>
+                            <button
+                              className="btn btn--secondary btn--small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/route/${route.id}/path`);
+                              }}
+                            >
+                              Путь маршрута
+                            </button>
+                            <button
+                              className="btn btn--secondary btn--small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRouteToDelete(route.id);
+                              }}
+                            >
+                              Удалить
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+          </>
+        ) : (
+          <div className="sessions-management">
+            {guideSessions.length === 0 ? (
+              <p className="no-routes">У этого гида пока нет запланированных прохождений</p>
+            ) : (
+              <div className="sessions-list" style={{ width: '100%' }}>
+                {[...guideSessions]
+                  .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+                  .map((session) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      currentUserId={currentUserId}
+                      isRouteOwner={false} // На этой странице права определяются через guide_id
+                      onJoin={(sid) => handleJoinSession({ stopPropagation: () => { } }, sid, session.route_id)}
+                      onLeave={(sid) => handleLeaveSession({ stopPropagation: () => { } }, sid, session.route_id)}
+                      onEdit={handleEditSession}
+                      onDelete={(sid) => setSessionToDelete(session)}
+                      onStatusChange={handleStatusChange}
+                      isJoined={userJoinedSessions.has(session.id)}
+                      statusLabels={STATUS_LABELS}
+                      statusClasses={STATUS_CLASSES}
+                      isLoggedIn={!!currentUserId}
+                      showRouteTitle={true}
+                      showOrganizer={false}
+                    />
+                  ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -278,6 +426,15 @@ export const GuidePage = () => {
         confirmLabel="Удалить"
         onConfirm={handleDeleteRoute}
         onCancel={() => setRouteToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!sessionToDelete}
+        title="Удаление прохождения"
+        message="Вы уверены, что хотите удалить это прохождение? Все записи участников будут аннулированы."
+        confirmLabel="Удалить"
+        onConfirm={handleDeleteSession}
+        onCancel={() => setSessionToDelete(null)}
       />
     </div>
   );
