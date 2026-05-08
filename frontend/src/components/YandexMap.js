@@ -28,7 +28,6 @@ function useDebounce(value, delay) {
 export function YandexMap({ 
   user, 
   videos = [], 
-  editMode, 
   fetchVideos = () => {}, 
   onUploadRef = { current: null }, 
   onFetchVideosRef = { current: null },
@@ -38,7 +37,11 @@ export function YandexMap({
   onPointDragEnd = null,
   onPointClick = null,
   onPointChange = null,
-  activePointIndex = null
+  activePointIndex = null,
+  selectedPoint = null,
+  disableFetchOnMove = false,
+  showPath = true,
+  showVideos = true
 }) {
   const [map, setMap] = useState(null);
   const [mapCenter, setMapCenter] = useState(() => {
@@ -66,7 +69,6 @@ export function YandexMap({
   const mapContainerRef = useRef(null);
   const selectionMarkerRef = useRef(null);
   const markersRef = useRef([]);
-  const editModeRef = useRef(editMode);
   const fetchVideosRef = useRef(fetchVideos);
   const userRef = useRef(user);
   const highlightedVideoIdRef = useRef(null);
@@ -77,9 +79,9 @@ export function YandexMap({
   const onPointClickRef = useRef(onPointClick);
   const onPointChangeRef = useRef(onPointChange);
   const routeFeaturesRef = useRef({ polylines: [], markers: [] });
+  const selectedPointMarkerRef = useRef(null);
 
   useEffect(() => { userRef.current = user; }, [user]);
-  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
   useEffect(() => { fetchVideosRef.current = fetchVideos; }, [fetchVideos]);
   useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
   useEffect(() => { onPointDragEndRef.current = onPointDragEnd; }, [onPointDragEnd]);
@@ -126,17 +128,17 @@ export function YandexMap({
     return () => window.removeEventListener('resize', updateMapSize);
   }, []);
 
-  // Удаление маркера выделения при выходе из editMode
-  useEffect(() => {
-    if (!editMode && selectionMarkerRef.current && map) {
-      map.removeChild(selectionMarkerRef.current);
-      selectionMarkerRef.current = null;
-    }
-  }, [editMode, map]);
 
   // Рендер маркеров - срабатывает при изменении videos или highlightedVideoId
   useEffect(() => {
-    if (!map || !window.ymaps3 || mode === 'route-editor' || mode === 'route-viewer') return;
+    if (!map || !window.ymaps3 || mode === 'route-editor' || !showVideos) {
+      // Очищаем старые маркеры
+      markersRef.current.forEach((marker) => {
+        try { map.removeChild(marker); } catch (e) {}
+      });
+      markersRef.current = [];
+      return;
+    }
 
     // Очищаем старые маркеры
     markersRef.current.forEach((marker) => {
@@ -153,7 +155,6 @@ export function YandexMap({
         const marker = renderMarker(
           feature,
           navigate,
-          editModeRef,
           userRef.current,
           highlightedVideoId
         );
@@ -167,17 +168,23 @@ export function YandexMap({
     // Очистка при размонтировании или изменении зависимостей
     return () => {
       markersRef.current.forEach((marker) => {
-        try {
-          map.removeChild(marker);
-        } catch (e) {}
+        try { map.removeChild(marker); } catch (e) {}
       });
       markersRef.current = [];
     };
-  }, [map, videos, highlightedVideoId, navigate, mode]);
+  }, [map, videos, highlightedVideoId, navigate, mode, showVideos]);
 
   // Рендер точек и линии маршрута
   useEffect(() => {
     if (!map || !window.ymaps3 || (mode !== 'route-editor' && mode !== 'route-viewer')) return;
+
+    if (!showPath) {
+      const { polylines, markers } = routeFeaturesRef.current;
+      polylines.forEach(p => { try { map.removeChild(p); } catch (e) {} });
+      markers.forEach(m => { try { map.removeChild(m); } catch (e) {} });
+      routeFeaturesRef.current = { polylines: [], markers: [] };
+      return;
+    }
 
     const { YMapFeature, YMapMarker } = window.ymaps3;
     const { polylines, markers } = routeFeaturesRef.current;
@@ -250,7 +257,7 @@ export function YandexMap({
       }
     });
 
-    if (mode === 'route-viewer' && routePoints.length > 0) {
+    if ((mode === 'route-viewer' || mode === 'point-selector') && routePoints.length > 0) {
       let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
       routePoints.forEach(p => {
         const coords = Array.isArray(p) ? p : p.coords;
@@ -264,10 +271,13 @@ export function YandexMap({
       if (minLon !== Infinity) {
         const padding = 0.05;
         map.update({
-          restrictMapArea: [
-            [minLon - padding, minLat - padding],
-            [maxLon + padding, maxLat + padding]
-          ]
+          location: {
+            bounds: [
+              [minLon - padding, minLat - padding],
+              [maxLon + padding, maxLat + padding]
+            ]
+          },
+          duration: 800
         });
       }
     }
@@ -307,7 +317,46 @@ export function YandexMap({
         try { map.removeChild(marker); } catch (e) {}
       });
     };
-  }, [map, routePoints, mode, activePopupIndex]);
+  }, [map, routePoints, mode, activePopupIndex, showPath]);
+  
+  // Рендер выбранной точки (point-selector)
+  useEffect(() => {
+    if (!map || !window.ymaps3 || mode !== 'point-selector') return;
+
+    const { YMapMarker } = window.ymaps3;
+
+    if (selectedPointMarkerRef.current) {
+      try { map.removeChild(selectedPointMarkerRef.current); } catch (e) {}
+      selectedPointMarkerRef.current = null;
+    }
+
+    if (selectedPoint) {
+      const el = document.createElement('div');
+      el.className = 'selected-point-marker';
+      el.innerHTML = '<div style="width:20px;height:20px;background:#6366f1;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,0.4);transform:translate(-50%,-50%);cursor:pointer;"></div>';
+
+      const marker = new YMapMarker({
+        coordinates: selectedPoint,
+        draggable: true,
+        zIndex: 1000,
+        onDragEnd: (coordinates) => {
+          if (onMapClickRef.current) {
+            onMapClickRef.current(coordinates);
+          }
+        }
+      }, el);
+
+      map.addChild(marker);
+      selectedPointMarkerRef.current = marker;
+    }
+
+    return () => {
+      if (selectedPointMarkerRef.current) {
+        try { map.removeChild(selectedPointMarkerRef.current); } catch (e) {}
+        selectedPointMarkerRef.current = null;
+      }
+    };
+  }, [map, selectedPoint, mode]);
 
 
   // Debounced координаты для загрузки видео
@@ -335,7 +384,7 @@ export function YandexMap({
 
     const loadVideos = async () => {
       try {
-        if (mode === 'videos') {
+        if (mode === 'videos' && !disableFetchOnMove) {
           await fetchVideosRef.current(lat, lng);
         }
       } catch (error) {
@@ -419,7 +468,6 @@ export function YandexMap({
         zoom: savedState.zoom,
         userRef,
         selectionMarkerRef,
-        editModeRef,
         onUploadRef,
         onFetchVideosRef,
         navigate,

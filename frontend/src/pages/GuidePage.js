@@ -11,6 +11,8 @@ import {
   STATUS_LABELS,
   STATUS_CLASSES
 } from '../utils/routeConstants';
+import { ProfileSkeleton } from '../components/Skeletons/ProfileSkeleton';
+
 
 /**
  * Страница гида
@@ -33,8 +35,17 @@ export const GuidePage = () => {
   const [activeTab, setActiveTab] = useState('routes');
   const [editingRoute, setEditingRoute] = useState(null);
   const [showAddRoute, setShowAddRoute] = useState(false);
+  const [activeSessionEditId, setActiveSessionEditId] = useState(null);
   const [routeToDelete, setRouteToDelete] = useState(null);
   const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [sessionPage, setSessionPage] = useState(1);
+  const SESSIONS_PER_PAGE = 5;
+
+  const closeAllForms = () => {
+    setEditingRoute(null);
+    setShowAddRoute(false);
+    setActiveSessionEditId(null);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -177,6 +188,7 @@ export const GuidePage = () => {
   };
 
   const startEditingRoute = (route) => {
+    closeAllForms();
     setEditingRoute({
       id: route.id,
       title: route.title,
@@ -251,8 +263,9 @@ export const GuidePage = () => {
   };
 
   if (loading) {
-    return <div className="guide-page">Загрузка...</div>;
+    return <ProfileSkeleton />;
   }
+
 
   if (error || !guide) {
     return <div className="guide-page">Ошибка: {error || 'Загрузка...'}</div>;
@@ -270,7 +283,7 @@ export const GuidePage = () => {
 
         <div className="guide-info">
           <h1>{guide.login}</h1>
-          <p className="guide-email"><strong></strong> {guide.email}</p>
+          <p className="guide-email">{guide.email}</p>
         </div>
       </div>
 
@@ -279,30 +292,37 @@ export const GuidePage = () => {
           <div className="tabs-container">
             <button
               className={`tab-btn ${activeTab === 'routes' ? 'active' : ''}`}
-              onClick={() => setActiveTab('routes')}
+              onClick={() => {
+                setActiveTab('routes');
+                closeAllForms();
+              }}
             >
               <span>Маршруты</span>
               {routes.length > 0 && <span className="tab-count">{routes.length}</span>}
-              {activeTab === 'routes' && <div className="tab-underline"></div>}
+              {activeTab === 'routes'}
             </button>
             <button
               className={`tab-btn ${activeTab === 'sessions' ? 'active' : ''}`}
-              onClick={() => setActiveTab('sessions')}
+              onClick={() => {
+                setActiveTab('sessions');
+                closeAllForms();
+              }}
             >
               <span>Прохождения</span>
               {guideSessions.length > 0 && <span className="tab-count">{guideSessions.length}</span>}
-              {activeTab === 'sessions' && <div className="tab-underline"></div>}
+              {activeTab === 'sessions'}
             </button>
           </div>
           {currentUserId === guide.id && activeTab === 'routes' && (
             <button
               className="btn-add-route"
               onClick={() => {
-                setShowAddRoute(!showAddRoute);
-                setEditingRoute(null);
+                const newState = !showAddRoute;
+                closeAllForms();
+                setShowAddRoute(newState);
               }}
             >
-              {showAddRoute ? 'Отмена' : '+ Добавить маршрут'}
+              {showAddRoute ? 'Отмена' : 'Добавить маршрут'}
             </button>
           )}
         </div>
@@ -391,28 +411,73 @@ export const GuidePage = () => {
             {guideSessions.length === 0 ? (
               <p className="no-routes">У этого гида пока нет запланированных прохождений</p>
             ) : (
-              <div className="sessions-list" style={{ width: '100%' }}>
-                {[...guideSessions]
-                  .sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
-                  .map((session) => (
-                    <SessionItem
-                      key={session.id}
-                      session={session}
-                      currentUserId={currentUserId}
-                      isRouteOwner={false} // На этой странице права определяются через guide_id
-                      onJoin={(sid) => handleJoinSession({ stopPropagation: () => { } }, sid, session.route_id)}
-                      onLeave={(sid) => handleLeaveSession({ stopPropagation: () => { } }, sid, session.route_id)}
-                      onEdit={handleEditSession}
-                      onDelete={(sid) => setSessionToDelete(session)}
-                      onStatusChange={handleStatusChange}
-                      isJoined={userJoinedSessions.has(session.id)}
-                      statusLabels={STATUS_LABELS}
-                      statusClasses={STATUS_CLASSES}
-                      isLoggedIn={!!currentUserId}
-                      showRouteTitle={true}
-                      showOrganizer={false}
-                    />
-                  ))}
+              <div className="sessions-list" style={guideSessions.length < 5 ? { minHeight: 'auto' } : undefined}>
+                {(() => {
+                  const sorted = [...guideSessions].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+                  const totalPages = Math.ceil(sorted.length / SESSIONS_PER_PAGE);
+                  const paginated = sorted.slice((sessionPage - 1) * SESSIONS_PER_PAGE, sessionPage * SESSIONS_PER_PAGE);
+
+                  return (
+                    <>
+                      {paginated.map((session) => (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          currentUserId={currentUserId}
+                          isRouteOwner={false} // На этой странице права определяются через guide_id
+                          onJoin={(sid) => handleJoinSession({ stopPropagation: () => { } }, sid, session.route_id)}
+                          onLeave={(sid) => handleLeaveSession({ stopPropagation: () => { } }, sid, session.route_id)}
+                          onEdit={handleEditSession}
+                          onDelete={(sid) => setSessionToDelete(session)}
+                          onStatusChange={handleStatusChange}
+                          isJoined={userJoinedSessions.has(session.id)}
+                          statusLabels={STATUS_LABELS}
+                          statusClasses={STATUS_CLASSES}
+                          isLoggedIn={!!currentUserId}
+                          showRouteTitle={true}
+                          showOrganizer={false}
+                          isEditing={activeSessionEditId === session.id}
+                          onToggleEdit={(editing) => {
+                            if (editing) {
+                              closeAllForms();
+                              setActiveSessionEditId(session.id);
+                            } else {
+                              setActiveSessionEditId(null);
+                            }
+                          }}
+                        />
+                      ))}
+
+                      {totalPages > 1 && (
+                        <div className="pagination">
+                          <div style={{ display: 'flex', justifyContent: 'flex-start', flex: 1 }}>
+                            {sessionPage > 1 && (
+                              <button
+                                className="btn btn--secondary btn--small"
+                                onClick={() => setSessionPage(prev => Math.max(1, prev - 1))}
+                              >
+                                Назад
+                              </button>
+                            )}
+                          </div>
+                          <span style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', color: '#666', whiteSpace: 'nowrap' }}>
+                            Страница {sessionPage} из {totalPages}
+                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
+                            {sessionPage < totalPages && (
+                              <button
+                                className="btn btn--secondary btn--small"
+                                onClick={() => setSessionPage(prev => Math.min(totalPages, prev + 1))}
+                              >
+                                Вперед
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -10,6 +10,7 @@ export const ConfirmModal = ({
   confirmLabel = 'Подтвердить',
   cancelLabel = 'Отмена',
   confirmVariant = 'delete', // 'delete', 'save', 'primary'
+  showCancel = true,
   onConfirm, 
   onCancel 
 }) => {
@@ -21,12 +22,14 @@ export const ConfirmModal = ({
         <h3 className="modal-title">{title}</h3>
         <p className="modal-message">{message}</p>
         <div className="modal-buttons">
-          <button
-            className="modal-button modal-button--cancel"
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </button>
+          {showCancel && (
+            <button
+              className="modal-button modal-button--cancel"
+              onClick={onCancel}
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             className={`modal-button modal-button--${confirmVariant}`}
             onClick={onConfirm}

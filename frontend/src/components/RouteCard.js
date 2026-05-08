@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { API_URL } from '../utils/constants';
 import defaultAvatar from '../static/Avatar.png';
-import { SkeletonCard } from './SkeletonCard';
+import { SkeletonCard } from './Skeletons/SkeletonCard';
 import '../styles/routeCard.css';
 
 /**
@@ -14,7 +14,6 @@ export const RouteCard = ({ route, guide }) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCardData = async () => {

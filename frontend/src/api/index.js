@@ -47,14 +47,16 @@ export const api = {
     }
   },
 
-  async fetchVideos(lat, lng, radius) {
+  async fetchVideos(lat, lng, radius, routeId) {
     // Используем радиус из запроса или default из конфига
     const searchRadius = radius != null ? radius : APP_CONFIG.DEFAULT_RADIUS;
     
     // Кэшируем только запросы с координатами
     const cacheKey = lat != null && lng != null 
       ? `videos:${lat.toFixed(4)}:${lng.toFixed(4)}:${searchRadius}` 
-      : 'videos:all';
+      : routeId 
+        ? `videos:route:${routeId}`
+        : 'videos:all';
 
     const cached = getFromCache(cacheKey);
     if (cached) return cached;
@@ -65,6 +67,9 @@ export const api = {
         url.searchParams.set('latitude', lat);
         url.searchParams.set('longitude', lng);
         url.searchParams.set('radius', searchRadius);
+      }
+      if (routeId) {
+        url.searchParams.set('routeId', routeId);
       }
       const res = await fetch(url);
       const data = await res.json();
@@ -77,13 +82,16 @@ export const api = {
     }
   },
 
-  async uploadVideo(videoFile, userId, latitude, longitude, isLive = false, routeData = null, videoDuration = 0) {
+  async uploadVideo(videoFile, userId, latitude, longitude, isLive = false, routeData = null, videoDuration = 0, routeId = null) {
     const formData = new FormData();
     formData.append('video', videoFile);
     formData.append('userId', userId);
     formData.append('latitude', latitude);
     formData.append('longitude', longitude);
     formData.append('isLive', isLive);
+    if (routeId) {
+      formData.append('routeId', routeId);
+    }
 
     if (isLive && routeData) {
       formData.append('routeStart', JSON.stringify(routeData.routeStart));
@@ -313,6 +321,33 @@ export const api = {
     } catch (error) {
       console.error('Get duration error:', error);
       return 0;
+    }
+  },
+  // ============================================
+  // Поиск
+  // ============================================
+  async searchRoutes(query) {
+    try {
+      const res = await fetch(`${API_URL}/routes/search/all?query=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Search routes error:', error);
+      return [];
+    }
+  },
+
+  // ============================================
+  // Сессии
+  // ============================================
+  async fetchUserSessions(userId) {
+    try {
+      const res = await fetch(`${API_URL}/sessions/user/${userId}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Fetch user sessions error:', error);
+      return [];
     }
   }
 };

@@ -49,6 +49,20 @@ class UserService {
 
     return data;
   }
+  /**
+   * Поиск пользователей (гидов) по логину или ФИО
+   */
+  async searchUsers(query) {
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .or(`login.ilike.%${query}%,full_name.ilike.%${query}%`)
+      .eq('is_guide', true); // Ищем только гидов по просьбе пользователя
+
+    if (error) throw error;
+
+    return data;
+  }
 }
 
 export const userService = new UserService();

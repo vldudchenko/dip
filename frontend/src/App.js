@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Map } from './components/Map';
@@ -9,6 +9,8 @@ import { UserPage } from './pages/UserPage';
 import { GuidePage } from './pages/GuidePage';
 import { RoutePage } from './pages/RoutePage';
 import { RoutePathPage } from './pages/RoutePathPage';
+import { SearchPage } from './pages/SearchPage';
+import { PostVideoPage } from './pages/PostVideoPage';
 
 import { useAuth } from './hooks/useAuth';
 import { useVideos } from './hooks/useVideos';
@@ -20,14 +22,14 @@ import { api, loadConfig } from './api';
 import './App.css';
 
 function App() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, loading: authLoading } = useAuth();
   const { videos, fetchVideos } = useVideos();
   const { provider } = useMapProvider();
+  const location = useLocation();
   // Загружаем Яндекс SDK только если выбран яндекс-провайдер
   const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
   const [configLoaded, setConfigLoaded] = useState(false);
 
-  const [editMode, setEditMode] = useState(false);
   const uploadHandlerRef = useRef(null);
   const fetchVideosRef = useRef(fetchVideos);
 
@@ -43,13 +45,10 @@ function App() {
     fetchVideosRef.current = fetchVideos;
   }, [fetchVideos]);
 
-  const handleToggleEditMode = useCallback(() => {
-    setEditMode(prev => !prev);
-  }, []);
 
-  const handleUpload = useCallback(async (file, userId, latitude, longitude) => {
+  const handleUpload = useCallback(async (videoFile, userId, latitude, longitude) => {
     try {
-      const result = await api.uploadVideo(file, userId, latitude, longitude);
+      const result = await api.uploadVideo(videoFile, userId, latitude, longitude);
       return result;
     } catch (error) {
       console.error('Upload error:', error);
@@ -61,32 +60,42 @@ function App() {
     uploadHandlerRef.current = handleUpload;
   }, [handleUpload]);
 
+  // Загружаем все видео при переходе на страницу карты
+  useEffect(() => {
+    if (location.pathname === '/map') {
+      fetchVideos(null, null);
+    }
+  }, [location.pathname, fetchVideos]);
+
   return (
     <div className="App hide-scrollbar">
       <Header
         user={user}
         onLogin={login}
         onLogout={logout}
-        editMode={editMode}
-        onToggleEditMode={handleToggleEditMode}
       />
 
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
 
+          <Route path="/search" element={<SearchPage />} />
+
+          <Route path="/post-video" element={<PostVideoPage user={user} authLoading={authLoading} />} />
+
           <Route path="/map" element={
-            <>
+            <div className="interactive-map-page" style={{ width: 'calc(100% - 2rem)', height: 'calc(100vh - 130px)', position: 'relative', borderRadius: '20px', overflow: 'hidden' }}>
               <Map
                 user={user}
                 videos={videos}
-                editMode={editMode}
                 fetchVideos={fetchVideos}
+                disableFetchOnMove={true}
                 onUploadRef={uploadHandlerRef}
                 onFetchVideosRef={fetchVideosRef}
                 ymapsReady={ymapsReady}
                 loadError={loadError}
                 configLoaded={configLoaded}
+                hideLayerControl={true}
               />
 
               {!user && (
@@ -94,7 +103,7 @@ function App() {
                   <p>Войдите через Яндекс, чтобы загружать видео на карту</p>
                 </div>
               )}
-            </>
+            </div>
           } />
 
           <Route path="/user/:login" element={<UserPage />} />

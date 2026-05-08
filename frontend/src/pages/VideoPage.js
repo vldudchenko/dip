@@ -6,15 +6,14 @@ import { LiveMarkerMap } from '../components/LiveMarkerMap';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 // Компонент комментария с поддержкой вложенности
-function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply }) {
+function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply, activeEditId, onToggleEdit }) {
   const [showReplies, setShowReplies] = useState(false);
   const [replyContent, setReplyContent] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  const isEditing = activeEditId === comment.id;
   const [editContent, setEditContent] = useState(comment.content);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const showReplyForm = activeReplyId === comment.id;
-
   const isOwner = user?.id === comment.user_id;
 
   const handleReply = async (e) => {
@@ -65,6 +64,28 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
             <span className="comment-date">{formatDate(comment.created_at)}</span>
           </div>
         </Link>
+        
+        {comment.replies && comment.replies.length > 0 && (
+          <button 
+            onClick={() => setShowReplies(!showReplies)}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#7c3aed', 
+              fontSize: '0.85rem', 
+              fontWeight: '600', 
+              marginLeft: '8px', 
+              cursor: 'pointer',
+              padding: '2px 4px',
+              borderRadius: '4px',
+              transition: 'background 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(124, 58, 237, 0.1)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+          >
+            {showReplies ? 'Скрыть ответы' : `Ответы (${comment.replies.length})`}
+          </button>
+        )}
 
         {comment.replyToUser && comment.replyToUser.id !== comment.users?.id && (
           <>
@@ -83,11 +104,14 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
 
         {isOwner && (
           <div className="comment-actions">
-            <button className="comment-action-btn" onClick={() => setIsEditing(!isEditing)}>
-              ✏️
+            <button className="btn btn--secondary btn--small" onClick={() => {
+              onToggleEdit(comment.id);
+              setEditContent(comment.content);
+            }}>
+              Редактировать
             </button>
-            <button className="comment-action-btn" onClick={handleDeleteClick}>
-              🗑
+            <button className="btn btn--secondary btn--small" onClick={handleDeleteClick}>
+              Удалить
             </button>
           </div>
         )}
@@ -98,15 +122,16 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            className="comment-edit-textarea"
+            className="comment-input"
+            rows="2"
             maxLength={500}
           />
           <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
             {editContent?.length || 0}/500
           </div>
-          <div className="comment-edit-buttons">
-            <button type="submit" className="btn btn--primary">Сохранить</button>
-            <button type="button" className="btn btn--secondary" onClick={() => setIsEditing(false)}>Отмена</button>
+          <div className="comment-edit-actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button type="submit" className="btn btn--primary btn--small">Сохранить</button>
+            <button type="button" className="btn btn--secondary btn--small" onClick={() => onToggleEdit(null)}>Отмена</button>
           </div>
         </form>
       ) : (
@@ -115,14 +140,14 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
         </div>
       )}
 
-      <div className="comment-footer">
+      {user && !isEditing && (
         <button className="comment-reply-btn" onClick={() => {
           onToggleReply(comment.id);
           setReplyContent('');
         }}>
           {showReplyForm ? 'Отмена' : 'Ответить'}
         </button>
-      </div>
+      )}
 
       {showReplyForm && (
         <form className="comment-reply-form" onSubmit={handleReply}>
@@ -130,27 +155,21 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
             value={replyContent}
             onChange={(e) => setReplyContent(e.target.value)}
             placeholder="Ваш ответ..."
-            className="comment-reply-textarea"
+            className="comment-input"
+            rows="2"
             maxLength={500}
           />
-          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px', marginBottom: '8px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
             {replyContent?.length || 0}/500
           </div>
-          <div className="comment-reply-buttons">
-            <button type="submit" className="btn btn--primary btn--small">Отправить</button>
-          </div>
+          <button type="submit" className="btn btn--primary btn--small" disabled={!replyContent.trim()}>
+            Отправить
+          </button>
         </form>
       )}
 
       {comment.replies && comment.replies.length > 0 && (
         <div className="comment-replies-wrapper">
-          <button
-            className="comment-show-replies-btn"
-            onClick={() => setShowReplies(!showReplies)}
-          >
-            {showReplies ? 'Скрыть ответы' : `Ответы (${comment.replies.length})`}
-          </button>
-
           {showReplies && (
             <div className="comment-replies">
               {comment.replies.map((reply) => (
@@ -163,6 +182,8 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
                   onDelete={onDelete}
                   activeReplyId={activeReplyId}
                   onToggleReply={onToggleReply}
+                  activeEditId={activeEditId}
+                  onToggleEdit={onToggleEdit}
                 />
               ))}
             </div>
@@ -204,11 +225,15 @@ export function VideoPage() {
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState(null);
+  const [activeEditId, setActiveEditId] = useState(null);
 
   const handleToggleMainForm = () => {
     const newState = !showCommentForm;
     setShowCommentForm(newState);
-    if (newState) setActiveReplyId(null);
+    if (newState) {
+      setActiveReplyId(null);
+      setActiveEditId(null);
+    }
   };
 
   const handleToggleReply = (id) => {
@@ -217,6 +242,17 @@ export function VideoPage() {
     } else {
       setActiveReplyId(id);
       setShowCommentForm(false);
+      setActiveEditId(null);
+    }
+  };
+
+  const handleToggleEdit = (id) => {
+    if (activeEditId === id) {
+      setActiveEditId(null);
+    } else {
+      setActiveEditId(id);
+      setShowCommentForm(false);
+      setActiveReplyId(null);
     }
   };
 
@@ -256,6 +292,12 @@ export function VideoPage() {
     const fetchAllData = async () => {
       setLoadingComments(true);
       try {
+        // Хелпер для подсчета общего количества комментариев (включая ответы)
+        const countAll = (list) => {
+          if (!list) return 0;
+          return list.reduce((acc, c) => acc + 1 + countAll(c.replies), 0);
+        };
+
         // Параллельные запросы
         const [statsData, likeData, commentsData] = await Promise.all([
           api.getVideoStats(id),
@@ -263,7 +305,8 @@ export function VideoPage() {
           api.getComments(id)
         ]);
 
-        setStats(statsData);
+        const totalComments = countAll(commentsData);
+        setStats({ ...statsData, commentCount: totalComments });
         setIsLiked(likeData.liked);
         setComments(commentsData);
       } catch (err) {
@@ -372,6 +415,7 @@ export function VideoPage() {
         setNewComment('');
         setShowCommentForm(false);
         setActiveReplyId(null);
+        setActiveEditId(null);
       }
     } catch (err) {
       console.error('Add comment error:', err);
@@ -402,6 +446,7 @@ export function VideoPage() {
           }
           return c;
         }));
+        setActiveEditId(null);
       }
     } catch (err) {
       console.error('Update comment error:', err);
@@ -451,7 +496,7 @@ export function VideoPage() {
 
   if (loading) {
     return (
-      <div className="video-page-loading">
+      <div className="route-detail-page">
         <p>Загрузка видео...</p>
       </div>
     );
@@ -459,9 +504,9 @@ export function VideoPage() {
 
   if (error || !video) {
     return (
-      <div className="video-page-error">
+      <div className="route-detail-page">
         <p>{error || 'Видео не найдено'}</p>
-        <button onClick={() => navigate('/')}>На главную</button>
+        <button className="btn btn--primary" onClick={() => navigate('/')}>На главную</button>
       </div>
     );
   }
@@ -470,14 +515,16 @@ export function VideoPage() {
   const avatarUrl = video.users?.avatar || 'https://via.placeholder.com/50';
 
   return (
-    <div className="video-page">
-      <button className="back-button" onClick={() => navigate('/')}>
-        Назад к карте
-      </button>
+    <div className="route-page-container video-page-container">
+      <div className="route-page-sidebar">
+        <button className="back-button" onClick={() => navigate(-1)}>
+          Назад
+        </button>
+      </div>
 
-      <div className="video-page-content">
-        <div className="video-main">
-          <div className="video-content-with-sidebar">
+      <div className="route-detail-page">
+        <div className="route-detail-content">
+          <div className="route-detail-main">
             <div className="video-playback-section">
               {isLiveMarker && (
                 <div className="live-marker-section live-marker-section--inline">
@@ -491,184 +538,172 @@ export function VideoPage() {
                 </div>
               )}
 
-              <div className="video-playback-layout">
-                <div className="video-player-container">
-                  <video
-                    ref={videoRef}
-                    src={video.file_url}
-                    controls
-                    autoPlay
-                    className="video-player"
-                    onTimeUpdate={handleTimeUpdate}
-                    onLoadedMetadata={handleLoadedMetadata}
-                  />
-                </div>
+              <div className="video-player-container">
+                <video
+                  ref={videoRef}
+                  src={video.file_url}
+                  controls
+                  autoPlay
+                  className="video-player"
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                />
               </div>
             </div>
 
-            <div className="video-sidebar">
-              <div className="video-details">
-                <div className="video-author">
-                  <img src={avatarUrl} alt={author} className="video-author-avatar" />
-                  <div className="video-author-info">
-                    <h3>{author}</h3>
-                    <p>Загружено: {new Date(video.created_at).toLocaleDateString()}</p>
-                    {isLiveMarker && (
-                      <p className="live-badge">🎥 Live</p>
-                    )}
-                  </div>
-                </div>
+            <div className="comments-section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              </div>
 
-                <div className="video-stats">
-                  <div className="stat-item">
-                    <span className="stat-icon">👁️</span>
-                    <span className="stat-value">{stats.viewCount}</span>
-                    <span className="stat-label">Просмотров</span>
-                  </div>
-                  <div className="stat-item">
+              {user ? (
+                showCommentForm && (
+                  <form className="add-comment-form" onSubmit={(e) => { e.preventDefault(); handleAddComment(); }}>
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Напишите комментарий..."
+                      className="comment-input"
+                      disabled={submittingComment}
+                      maxLength={500}
+                    />
+                    <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+                      {newComment?.length || 0}/500
+                    </div>
                     <button
-                      className={`stat-btn like-btn ${isLiked ? 'liked' : ''}`}
-                      onClick={handleLikeToggle}
-                      disabled={loadingLike}
+                      type="submit"
+                      className="btn btn--primary"
+                      disabled={submittingComment || !newComment.trim()}
                     >
-                      <span className="stat-icon">{isLiked ? '❤️' : '🤍'}</span>
-                      <span className="stat-value">{stats.likeCount}</span>
+                      {submittingComment ? 'Отправка...' : 'Отправить'}
                     </button>
-                    <span className="stat-label">Лайков</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-icon">💬</span>
-                    <span className="stat-value">{stats.commentCount}</span>
-                    <span className="stat-label">Комментариев</span>
-                  </div>
-                </div>
-
-                {isOwner && (
-                  <button
-                    className="delete-video-button"
-                    onClick={handleDeleteClick}
-                    disabled={deleting}
-                  >
-                    {deleting ? 'Удаление...' : '🗑 Удалить видео'}
+                  </form>
+                )
+              ) : (
+                <p className="login-to-comment" style={{ textAlign: 'center', padding: '1rem', background: '#f9fafb', borderRadius: '8px' }}>
+                  <button className="btn btn--primary" onClick={() => window.location.href = `${process.env.REACT_APP_API_URL}/auth/yandex`}>
+                    Войдите, чтобы комментировать
                   </button>
+                </p>
+              )}
+
+              <div className="comments-list">
+                {loadingComments ? (
+                  <p className="loading-comments" style={{ color: '#666' }}>Загрузка комментариев...</p>
+                ) : comments.length > 0 ? (
+                  comments.map((comment) => (
+                    <CommentItem
+                      key={comment.id}
+                      comment={comment}
+                      user={user}
+                      onReply={handleReply}
+                      onEdit={handleEditComment}
+                      onDelete={handleDeleteComment}
+                      activeReplyId={activeReplyId}
+                      onToggleReply={handleToggleReply}
+                      activeEditId={activeEditId}
+                      onToggleEdit={handleToggleEdit}
+                    />
+                  ))
+                ) : (
+                  <p className="no-comments" style={{ color: '#666' }}>Комментариев пока нет. Будьте первым!</p>
                 )}
-
-                <div className="video-location">
-                  <h4>📍 Местоположение</h4>
-                  <button
-                    className="show-on-map-button"
-                    onClick={() => navigate('/', {
-                      state: {
-                        center: [Number(video.longitude), Number(video.latitude)],
-                        zoom: 18,
-                        highlightedVideoId: video.id,
-                        bearing: 0,
-                        tilt: 0
-                      }
-                    })}
-                  >
-                    Показать на карте
-                  </button>
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="comments-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 className="comments-title" style={{ margin: 0 }}>
-                Комментарии ({stats.commentCount})
-              </h3>
-              {user && (
-                <button
-                  className="btn btn--primary btn--small"
-                  onClick={handleToggleMainForm}
-                >
-                  {showCommentForm ? 'Отмена' : 'Написать комментарий'}
-                </button>
-              )}
-            </div>
+          <div className="route-detail-sidebar">
+            <div className="guide-card">
+              <Link to={`/user/${author}`} className="guide-card-link">
+                <img src={avatarUrl} alt={author} className="guide-card-avatar" />
+                <div className="guide-card-info">
+                  <span className="guide-card-name">{author}</span>
+                </div>
+              </Link>
 
-            {user ? (
-              showCommentForm && (
-                <form className="add-comment-form" onSubmit={(e) => { e.preventDefault(); handleAddComment(); }}>
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Напишите комментарий..."
-                    className="comment-input"
-                    disabled={submittingComment}
-                    maxLength={500}
-                  />
-                  <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px', marginBottom: '10px' }}>
-                    {newComment?.length || 0}/500
-                  </div>
+              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+                <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+                  Загружено: {new Date(video.created_at).toLocaleDateString()}
+                </div>
+                {isLiveMarker && (
+                  <span className="live-badge" style={{ display: 'inline-block', padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                    🎥 Live
+                  </span>
+                )}
+              </div>
+
+              <div className="video-stats" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#666' }}>Просмотры</span>
+                  <span style={{ color: '#666' }}>{stats.viewCount}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <button
-                    type="submit"
-                    className="btn btn--primary"
-                    disabled={submittingComment || !newComment.trim()}
+                    className={`like-btn ${isLiked ? 'liked' : ''}`}
+                    onClick={handleLikeToggle}
+                    disabled={loadingLike}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    {submittingComment ? 'Отправка...' : 'Отправить'}
+                    <span style={{ fontSize: '1.2rem' }}>{isLiked ? '❤️' : '🤍'}</span>
+                    <span style={{ fontSize: '0.9rem', color: '#666' }}>Лайки</span>
                   </button>
-                </form>
-              )
-            ) : (
-              <p className="login-to-comment">
-                <button className="btn btn--primary" onClick={() => window.location.href = `${process.env.REACT_APP_API_URL}/auth/yandex`}>
-                  Войдите, чтобы комментировать
-                </button>
-              </p>
-            )}
+                  <span style={{ color: '#666' }}>{stats.likeCount}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#666' }}>Комментарии</span>
+                  <span style={{ color: '#666' }}>{stats.commentCount}</span>
+                </div>
+              </div>
 
-            <div className="comments-list">
-              {loadingComments ? (
-                <p className="loading-comments">Загрузка комментариев...</p>
-              ) : comments.length > 0 ? (
-                comments.map((comment) => (
-                  <CommentItem
-                    key={comment.id}
-                    comment={comment}
-                    user={user}
-                    onReply={handleReply}
-                    onEdit={handleEditComment}
-                    onDelete={handleDeleteComment}
-                    activeReplyId={activeReplyId}
-                    onToggleReply={handleToggleReply}
-                  />
-                ))
-              ) : (
-                <p className="no-comments">Комментариев пока нет. Будьте первым!</p>
-              )}
+              <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  className="btn btn--primary btn--full"
+                  onClick={() => navigate('/map', {
+                    state: {
+                      center: [Number(video.longitude), Number(video.latitude)],
+                      zoom: 18,
+                      highlightedVideoId: video.id,
+                      bearing: 0,
+                      tilt: 0
+                    }
+                  })}
+                >
+                  Показать на карте
+                </button>
+
+                {user && (
+                  <button
+                    className="btn btn--secondary btn--full"
+                    onClick={handleToggleMainForm}
+                    style={{ color: '#666' }}
+                  >
+                    {showCommentForm ? 'Отмена' : 'Написать'}
+                  </button>
+                )}
+
+                {isOwner && (
+                  <button
+                    className="btn btn--secondary btn--full"
+                    style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                    onClick={handleDeleteClick}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Удаление...' : 'Удалить видео'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay" onClick={handleDeleteCancel}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modal-title">Удаление видео</h3>
-            <p className="modal-message">
-              Вы уверены, что хотите удалить это видео? Это действие нельзя отменить.
-            </p>
-            <div className="modal-buttons">
-              <button
-                className="modal-button modal-button--cancel"
-                onClick={handleDeleteCancel}
-              >
-                Отмена
-              </button>
-              <button
-                className="modal-button modal-button--delete"
-                onClick={handleDeleteConfirm}
-                disabled={deleting}
-              >
-                {deleting ? 'Удаление...' : 'Удалить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={showModal}
+        title="Удаление видео"
+        message="Вы уверены, что хотите удалить это видео? Это действие нельзя отменить."
+        confirmLabel="Удалить"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 }

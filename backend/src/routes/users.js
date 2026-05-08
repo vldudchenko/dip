@@ -79,4 +79,20 @@ router.patch('/:id/guide', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/users/search - Поиск гидов
+ */
+router.get('/search/all', async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ error: 'Необходимо указать поисковый запрос' });
+    }
+    const users = await userService.searchUsers(query);
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

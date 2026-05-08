@@ -10,6 +10,7 @@ export function MapProviderToggle({ provider, onChange }) {
   return (
     <div className="map-provider-toggle" title="Выбрать провайдер карты">
       <button
+        type="button"
         className={`map-provider-btn ${provider === 'osm' ? 'map-provider-btn--active' : ''}`}
         onClick={() => onChange('osm')}
         aria-pressed={provider === 'osm'}
@@ -18,6 +19,7 @@ export function MapProviderToggle({ provider, onChange }) {
         🗺 OSM
       </button>
       <button
+        type="button"
         className={`map-provider-btn ${provider === 'yandex' ? 'map-provider-btn--active' : ''}`}
         onClick={() => onChange('yandex')}
         aria-pressed={provider === 'yandex'}

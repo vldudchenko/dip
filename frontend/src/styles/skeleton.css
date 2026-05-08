@@ -113,3 +113,34 @@
     transform: translateX(100%);
   }
 }
+
+/* Универсальные элементы для профилей (UserPage / GuidePage) */
+.skeleton-avatar {
+  background: #e5e7eb;
+  border-radius: 50%;
+}
+
+.skeleton-box {
+  background: #e5e7eb;
+  border-radius: 8px;
+}
+
+.skeleton-text {
+  background: #e5e7eb;
+  border-radius: 4px;
+  height: 1rem;
+}
+
+.skeleton-stats-row {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.skeleton-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 60px;
+}

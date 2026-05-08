@@ -177,19 +177,31 @@ export function toLngLatRoute(routeGeometry) {
 export function createAvatarElement(avatarUrl, login, isHighlighted = false) {
   const element = document.createElement('div');
   element.className = 'VideoMarker';
+  element.style.width = '50px';
+  element.style.height = '50px';
+  element.style.borderRadius = '50%';
+  element.style.background = 'rgba(255, 255, 255, 0.4)';
+  element.style.backdropFilter = 'blur(10px)';
+  element.style.webkitBackdropFilter = 'blur(10px)';
+  element.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+  element.style.display = 'flex';
+  element.style.alignItems = 'center';
+  element.style.justifyContent = 'center';
+
   element.innerHTML = `
     <img
       src="${avatarUrl || defaultAvatar}"
       alt="${login}"
       style="
-        width:50px;
-        height:50px;
+        width:100%;
+        height:100%;
         border-radius:50%;
         border:3px solid ${isHighlighted ? '#22c55e' : 'white'};
-        box-shadow:0 2px 8px rgba(0,0,0,0.3);
         object-fit:cover;
         cursor:pointer;
+        display:block;
       "
+      onerror="this.src='${defaultAvatar}'"
     />
   `;
   return element;

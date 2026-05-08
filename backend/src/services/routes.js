@@ -141,6 +141,20 @@ class RoutesService {
 
     return { success: true, newView: true, data };
   }
+  /**
+   * Поиск маршрутов по названию или описанию
+   */
+  async searchRoutes(query) {
+    const { data, error } = await supabaseAdmin
+      .from('routes')
+      .select('*')
+      .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data;
+  }
 }
 
 export const routesService = new RoutesService();

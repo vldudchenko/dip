@@ -101,4 +101,20 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/routes/search - Поиск маршрутов
+ */
+router.get('/search/all', async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ error: 'Необходимо указать поисковый запрос' });
+    }
+    const routes = await routesService.searchRoutes(query);
+    res.json(routes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

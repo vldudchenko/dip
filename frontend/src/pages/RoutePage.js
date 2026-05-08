@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { SkeletonRoutePage } from '../components/Skeletons/SkeletonRoutePage';
 import { useAuth } from '../hooks/useAuth';
 import { API_URL } from '../utils/constants';
 import defaultAvatar from '../static/Avatar.png';
@@ -18,10 +19,10 @@ import {
 import { reverseGeocode } from '../utils/map/leaflet/helpers';
 
 // Компонент комментария с поддержкой вложенности
-function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply }) {
-  const [showReplies, setShowReplies] = useState(false);
+function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply, activeEditId, onToggleEdit, isReply = false }) {
+  const [showReplies, setShowReplies] = useState(comment.type === 'question');
   const [replyContent, setReplyContent] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  const isEditing = activeEditId === comment.id;
   const [editContent, setEditContent] = useState(comment.content);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
@@ -29,7 +30,7 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
   const isGuideOfRoute = user?.id === comment.guide_id; // Мы передадим guide_id в пропсах
   const showReplyForm = activeReplyId === comment.id;
 
-  const canReply = comment.type === 'question' && isGuideOfRoute;
+  const canReply = comment.type === 'question' && isGuideOfRoute && !isReply && (!comment.replies || comment.replies.length === 0);
   const isReview = comment.type === 'review';
 
   const isOwner = user?.id === comment.user_id;
@@ -85,10 +86,33 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
             <span className="comment-date">{formatDate(comment.created_at)}</span>
           </div>
         </Link>
+
+        {comment.replies && comment.replies.length > 0 && (
+          <button
+            onClick={() => setShowReplies(!showReplies)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7c3aed',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              marginLeft: '8px',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              borderRadius: '4px',
+              transition: 'background 0.2s'
+            }}
+          >
+            {showReplies ? 'Скрыть ответ' : 'Ответ'}
+          </button>
+        )}
         {(isOwner || comment.canDelete) && (
           <div className="comment-actions">
             {isOwner && (
-              <button className="btn btn--secondary btn--small" onClick={() => setIsEditing(!isEditing)}>
+              <button className="btn btn--secondary btn--small" onClick={() => {
+                onToggleEdit(comment.id);
+                setEditContent(comment.content);
+              }}>
                 Редактировать
               </button>
             )}
@@ -113,7 +137,7 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
           </div>
           <div className="comment-edit-actions">
             <button type="submit" className="btn btn--primary btn--small">Сохранить</button>
-            <button type="button" className="btn btn--secondary btn--small" onClick={() => setIsEditing(false)}>Отмена</button>
+            <button type="button" className="btn btn--secondary btn--small" onClick={() => onToggleEdit(null)}>Отмена</button>
           </div>
         </form>
       ) : (
@@ -141,7 +165,7 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
             rows="2"
             maxLength={500}
           />
-          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px', marginBottom: '8px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
             {replyContent?.length || 0}/500
           </div>
           <button type="submit" className="btn btn--primary btn--small" disabled={!replyContent.trim()}>
@@ -152,18 +176,12 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
 
       {comment.replies && comment.replies.length > 0 && (
         <div className="comment-replies-wrapper">
-          <button
-            className="comment-show-replies-btn"
-            onClick={() => setShowReplies(!showReplies)}
-          >
-            {showReplies ? 'Скрыть ответ' : `Ответ`}
-          </button>
-
           {showReplies && (
             <div className="comment-replies">
               {comment.replies.map(reply => (
                 <CommentItem
                   key={reply.id}
+                  isReply={true}
                   comment={{
                     ...reply,
                     canDelete: comment.canDelete,
@@ -175,6 +193,8 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
                   onDelete={onDelete}
                   activeReplyId={activeReplyId}
                   onToggleReply={onToggleReply}
+                  activeEditId={activeEditId}
+                  onToggleEdit={onToggleEdit}
                 />
               ))}
             </div>
@@ -222,6 +242,9 @@ export const RoutePage = () => {
   const [showAddSession, setShowAddSession] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState(null);
   const [routeAddresses, setRouteAddresses] = useState({});
+  const [sessionPage, setSessionPage] = useState(1);
+  const SESSIONS_PER_PAGE = 4;
+  const [sessionGuides, setSessionGuides] = useState({});
 
   // Статистика и комментарии
   const [routeStats, setRouteStats] = useState({ views: 0, completed_sessions: 0 });
@@ -230,12 +253,16 @@ export const RoutePage = () => {
   const [commentType, setCommentType] = useState('review');
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState(null);
+  const [activeEditId, setActiveEditId] = useState(null);
   const [isMediaHovered, setIsMediaHovered] = useState(false);
 
   const handleToggleMainForm = () => {
     const newState = !showCommentForm;
     setShowCommentForm(newState);
-    if (newState) setActiveReplyId(null);
+    if (newState) {
+      setActiveReplyId(null);
+      setActiveEditId(null);
+    }
   };
 
   const handleToggleReply = (id) => {
@@ -244,11 +271,42 @@ export const RoutePage = () => {
     } else {
       setActiveReplyId(id);
       setShowCommentForm(false);
+      setActiveEditId(null);
     }
+  };
+
+  const handleToggleEdit = (id) => {
+    if (activeEditId === id) {
+      setActiveEditId(null);
+    } else {
+      setActiveEditId(id);
+      setShowCommentForm(false);
+      setActiveReplyId(null);
+    }
+  };
+
+  const countCommentsRecursive = (list) => {
+    if (!list) return 0;
+    return list.reduce((acc, c) => acc + 1 + countCommentsRecursive(c.replies), 0);
   };
 
 
   useEffect(() => {
+    const refreshMedia = async () => {
+      try {
+        setMediaLoading(true);
+        const videosResp = await fetch(`${API_URL}/videos?routeId=${id}`);
+        if (videosResp.ok) setRouteVideos(await videosResp.json());
+
+        const imagesResp = await fetch(`${API_URL}/images/route/${id}`);
+        if (imagesResp.ok) setRouteImages(await imagesResp.json());
+      } catch (err) {
+        console.error('Error fetching media:', err);
+      } finally {
+        setMediaLoading(false);
+      }
+    };
+
     const fetchData = async () => {
       try {
         const routeResponse = await fetch(`${API_URL}/routes/${id}`);
@@ -309,27 +367,12 @@ export const RoutePage = () => {
           }
 
           // Загрузка медиа
-          refreshMedia();
+          await refreshMedia();
         }
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
-      }
-    };
-
-    const refreshMedia = async () => {
-      try {
-        setMediaLoading(true);
-        const videosResp = await fetch(`${API_URL}/videos?routeId=${id}`);
-        if (videosResp.ok) setRouteVideos(await videosResp.json());
-
-        const imagesResp = await fetch(`${API_URL}/images/route/${id}`);
-        if (imagesResp.ok) setRouteImages(await imagesResp.json());
-      } catch (err) {
-        console.error('Error fetching media:', err);
-      } finally {
-        setMediaLoading(false);
       }
     };
 
@@ -387,6 +430,30 @@ export const RoutePage = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchGuides = async () => {
+      const guideIds = [...new Set(sessions.map(s => s.guide_id))];
+      const newGuides = { ...sessionGuides };
+      let changed = false;
+
+      for (const gid of guideIds) {
+        if (!newGuides[gid]) {
+          try {
+            const response = await fetch(`${API_URL}/users/${gid}`);
+            if (response.ok) {
+              newGuides[gid] = await response.json();
+              changed = true;
+            }
+          } catch (err) {
+            console.error('Error pre-fetching guide:', err);
+          }
+        }
+      }
+      if (changed) setSessionGuides(newGuides);
+    };
+    if (sessions.length > 0) fetchGuides();
+  }, [sessions]);
+
   // -----------------------------------------------------
   // КОММЕНТАРИИ
   // -----------------------------------------------------
@@ -423,6 +490,7 @@ export const RoutePage = () => {
       setNewComment('');
       setShowCommentForm(false);
       setActiveReplyId(null);
+      setActiveEditId(null);
       await fetchComments();
     } catch (error) {
       alert(error.message);
@@ -445,6 +513,7 @@ export const RoutePage = () => {
 
       if (!response.ok) throw new Error('Ошибка при ответе');
       setActiveReplyId(null);
+      setActiveEditId(null);
       setShowCommentForm(false);
       await fetchComments();
     } catch (error) {
@@ -466,6 +535,7 @@ export const RoutePage = () => {
       });
 
       if (!response.ok) throw new Error('Ошибка при редактировании');
+      setActiveEditId(null);
       await fetchComments();
     } catch (error) {
       alert(error.message);
@@ -558,6 +628,25 @@ export const RoutePage = () => {
       refreshSessions();
     } catch (err) {
       console.error(err.message);
+    }
+  };
+
+  const handleStatusChange = async (sessionId, routeId, newStatus) => {
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось обновить статус');
+      }
+
+      refreshSessions();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -804,7 +893,7 @@ export const RoutePage = () => {
   const isGuide = isRouteOwner; // Для совместимости с остальными частями кода, где это касается владения маршрутом
 
   if (loading) {
-    return <div className="route-detail-page">Загрузка...</div>;
+    return <SkeletonRoutePage />;
   }
 
   if (error) {
@@ -824,6 +913,14 @@ export const RoutePage = () => {
           <div className="route-detail-main">
             <div className="route-detail-header">
               <h1>{route.title}</h1>
+              {isGuide && (
+                <button
+                  className="btn btn--primary btn--small"
+                  onClick={() => navigate(`/route/${id}/path`)}
+                >
+                  {route.path_data && route.path_data.length > 0 ? 'Редактировать путь' : 'Добавить путь'}
+                </button>
+              )}
             </div>
 
             {route.description && (
@@ -831,6 +928,28 @@ export const RoutePage = () => {
                 <p>{route.description}</p>
               </div>
             )}
+            <div className="route-summary" style={{ padding: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '4px 12px', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.2' }}>
+                {generateRouteDescription(route.path_data, routeAddresses).map((seg, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    {!seg.isStart && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                        <span>➔</span>
+                        <span>{seg.transition}</span>
+                        <span>➔</span>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', padding: '2px 0' }}>
+                      <span style={{ fontWeight: '600', color: '#111827', whiteSpace: 'nowrap' }}>{seg.title}</span>
+                      {seg.address && (
+                        <span style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '-2px' }}>{seg.address}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {allMedia.length > 0 && (
               <div className="route-detail-gallery" style={{ marginBottom: isGuide ? '0' : '20px' }}>
@@ -979,9 +1098,9 @@ export const RoutePage = () => {
             <div className="route-detail-map" style={{ marginBottom: isGuide ? '20px' : '40px', position: 'relative' }}>
               <div className="route-path-map-container" style={{ height: '400px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ddd', position: 'relative' }}>
                 <Map
-                  key={`map-${mapResetKey}`}
                   mode="route-viewer"
                   routePoints={route.path_data}
+                  videos={routeVideos}
                   ymapsReady={ymapsReady}
                   loadError={loadError}
                   configLoaded={true}
@@ -1002,61 +1121,30 @@ export const RoutePage = () => {
                 }}>
                   Расстояние ~ {calculateTotalDistance(route.path_data).toFixed(1)} км
                 </div>
-                <button
-                  onClick={() => setMapResetKey(prev => prev + 1)}
-                  className="btn btn--secondary btn--small"
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    zIndex: 1000,
-                    fontSize: '0.9rem',
-                    padding: '4px 8px',
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    border: '1px solid #ccc'
-                  }}
-                >
-                  Сбросить положение
-                </button>
               </div>
 
-              <div className="route-summary" style={{ marginTop: '10px', padding: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '4px 12px', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.2' }}>
-                  {generateRouteDescription(route.path_data, routeAddresses).map((seg, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      {!seg.isStart && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                          <span>➔</span>
-                          <span>{seg.transition}</span>
-                          <span>➔</span>
-                        </div>
-                      )}
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', padding: '2px 0' }}>
-                        <span style={{ fontWeight: '600', color: '#111827', whiteSpace: 'nowrap' }}>{seg.title}</span>
-                        {seg.address && (
-                          <span style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '-2px' }}>{seg.address}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
             {/* Заголовок сессий */}
-            {(sessions.filter(s => s.status !== 'completed').length > 0 || (isAnyGuide && showAddSession)) && (
-              <div className="sessions-header">
-                <h2>Прохождения маршрута</h2>
-                {isAnyGuide && (
-                  <button
-                    className="btn btn--primary btn--small"
-                    onClick={() => setShowAddSession(!showAddSession)}
-                  >
-                    {showAddSession ? 'Отмена' : 'Добавить'}
-                  </button>
-                )}
-              </div>
-            )}
+            {(() => {
+              const activeCount = sessions.filter(s => s.status !== 'completed').length;
+              if (activeCount > 0 || (isAnyGuide && showAddSession)) {
+                return (
+                  <div className="sessions-header">
+                    <h2>Прохождения маршрута {activeCount > 0 && <span className="tab-count">{activeCount}</span>}</h2>
+                    {isAnyGuide && (
+                      <button
+                        className="btn btn--primary btn--small"
+                        onClick={() => setShowAddSession(!showAddSession)}
+                      >
+                        {showAddSession ? 'Отмена' : 'Добавить'}
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Кнопка "Добавить" для гида, если сессий нет и форма закрыта */}
             {isAnyGuide && sessions.filter(s => s.status !== 'completed').length === 0 && !showAddSession && (
@@ -1071,11 +1159,17 @@ export const RoutePage = () => {
             )}
 
             {/* Сообщение "Нет сессий": для всех, если список пуст и форма закрыта */}
-            {sessions.filter(s => s.status !== 'completed').length === 0 && !showAddSession && (
-              <div className="no-sessions-container" style={{ marginBottom: '20px' }}>
-                <p className="no-sessions">Пока нет запланированных прохождений</p>
-              </div>
-            )}
+            {(() => {
+              const activeSessions = sessions.filter(s => s.status !== 'completed');
+              if (activeSessions.length === 0 && !showAddSession) {
+                return (
+                  <div className="no-sessions-container" style={{ marginBottom: '20px' }}>
+                    <p className="no-sessions">Пока нет запланированных прохождений</p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {showAddSession && (
               <AddSessionForm
@@ -1089,50 +1183,98 @@ export const RoutePage = () => {
               />
             )}
 
-            {sessions.filter(s => s.status !== 'completed').length > 0 && (
-              <div className="sessions-list">
-                {sessions.filter(s => s.status !== 'completed').map((session) => (
-                  <SessionItem
-                    key={session.id}
-                    session={session}
-                    currentUserId={currentUserId}
-                    isRouteOwner={isRouteOwner}
-                    onJoin={handleJoinSession}
-                    onLeave={handleLeaveSession}
-                    onEdit={handleEditSession}
-                    onDelete={(id) => setSessionToDelete(id)}
-                    isJoined={userJoinedSessions.has(session.id)}
-                    statusLabels={STATUS_LABELS}
-                    statusClasses={STATUS_CLASSES}
-                    isLoggedIn={currentUserId !== null}
-                  />
-                ))}
-              </div>
-            )}
+            {(() => {
+              const activeSessions = sessions.filter(s => s.status !== 'completed');
+              const totalPages = Math.ceil(activeSessions.length / SESSIONS_PER_PAGE);
+              const currentSessions = activeSessions.slice((sessionPage - 1) * SESSIONS_PER_PAGE, sessionPage * SESSIONS_PER_PAGE);
+
+              if (activeSessions.length > 0) {
+                return (
+                  <>
+                    <div className="sessions-list" style={activeSessions.length < 4 ? { minHeight: 'auto' } : undefined}>
+                      {currentSessions.map((session) => (
+                        <SessionItem
+                          key={session.id}
+                          session={session}
+                          currentUserId={currentUserId}
+                          isRouteOwner={isRouteOwner}
+                          onJoin={handleJoinSession}
+                          onLeave={handleLeaveSession}
+                          onEdit={handleEditSession}
+                          onDelete={(id) => setSessionToDelete(id)}
+                          onStatusChange={handleStatusChange}
+                          isJoined={userJoinedSessions.has(session.id)}
+                          statusLabels={STATUS_LABELS}
+                          statusClasses={STATUS_CLASSES}
+                          isLoggedIn={currentUserId !== null}
+                          initialGuide={sessionGuides[session.guide_id]}
+                        />
+                      ))}
+                      {totalPages > 1 && (
+                        <div className="pagination">
+                          <div style={{ display: 'flex', justifyContent: 'flex-start', flex: 1 }}>
+                            {sessionPage > 1 && (
+                              <button
+                                className="btn btn--secondary btn--small"
+                                onClick={() => setSessionPage(prev => Math.max(1, prev - 1))}
+                              >
+                                Назад
+                              </button>
+                            )}
+                          </div>
+                          <span style={{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', color: '#666', whiteSpace: 'nowrap' }}>
+                            Страница {sessionPage} из {totalPages}
+                          </span>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', flex: 1 }}>
+                            {sessionPage < totalPages && (
+                              <button
+                                className="btn btn--secondary btn--small"
+                                onClick={() => setSessionPage(prev => Math.min(totalPages, prev + 1))}
+                              >
+                                Вперед
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              }
+              return null;
+            })()}
 
 
             {/* Блок комментариев */}
-            <div className="comments-section" style={{ marginTop: '20px' }}>
-              <div className="comments-tabs" style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '20px' }}>
+            <div className="comments-section" style={{ marginTop: '10px' }}>
+              <div className="comments-tabs" style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '10px' }}>
                 <button
                   className={`tab-btn ${commentType === 'review' ? 'active' : ''}`}
                   onClick={() => setCommentType('review')}
                   style={{ padding: '10px 0', border: 'none', background: 'none', outline: 'none', color: commentType === 'review' ? '#7c3aed' : '#666', fontWeight: commentType === 'review' ? '600' : '400', cursor: 'pointer', position: 'relative' }}
                 >
-                  <span>Отзывы</span>
-                  {commentType === 'review' && (
-                    <div style={{ position: 'absolute', bottom: '-1px', left: 0, right: 0, height: '2px', background: '#7c3aed' }}></div>
-                  )}
+                  Отзывы
+                  <span>
+                    {(() => {
+                      const count = countCommentsRecursive(comments.filter(c => c.type === 'review'));
+                      return count > 0 ? <span className="tab-count">{count}</span> : null;
+                    })()}
+                  </span>
+                  {commentType === 'review'}
                 </button>
                 <button
                   className={`tab-btn ${commentType === 'question' ? 'active' : ''}`}
                   onClick={() => setCommentType('question')}
                   style={{ padding: '10px 0', border: 'none', background: 'none', outline: 'none', color: commentType === 'question' ? '#7c3aed' : '#666', fontWeight: commentType === 'question' ? '600' : '400', cursor: 'pointer', position: 'relative' }}
                 >
-                  <span>Вопросы</span>
-                  {commentType === 'question' && (
-                    <div style={{ position: 'absolute', bottom: '-1px', left: 0, right: 0, height: '2px', background: '#7c3aed' }}></div>
-                  )}
+                  Вопросы
+                  <span>
+                    {(() => {
+                      const count = comments.filter(c => c.type === 'question').length;
+                      return count > 0 ? <span className="tab-count">{count}</span> : null;
+                    })()}
+                  </span>
+                  {commentType === 'question'}
                 </button>
 
                 {currentUserId && !isGuide && (
@@ -1193,6 +1335,8 @@ export const RoutePage = () => {
                       onDelete={handleDeleteComment}
                       activeReplyId={activeReplyId}
                       onToggleReply={handleToggleReply}
+                      activeEditId={activeEditId}
+                      onToggleEdit={handleToggleEdit}
                     />
                   ))}
                 {comments.filter(c => c.type === commentType).length === 0 && (

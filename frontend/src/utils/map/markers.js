@@ -42,14 +42,13 @@ export function createMarker({ coordinates, element }) {
 /**
  * Рендерит маркер для feature (используется при массовом отображении)
  */
-export function renderMarker(feature, navigate, editModeRef, currentUser, highlightedVideoId) {
+export function renderMarker(feature, navigate, currentUser, highlightedVideoId) {
   const video = feature.properties.video;
   const isHighlighted = highlightedVideoId && video.id === highlightedVideoId;
 
   const element = createVideoMarkerElement(
     video,
     () => {
-      if (editModeRef?.current) return;
       navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
     },
     isHighlighted
@@ -64,11 +63,10 @@ export function renderMarker(feature, navigate, editModeRef, currentUser, highli
 /**
  * Создаёт полный маркер для видео (маркер + элемент)
  */
-export function createVideoMarker(video, navigate, editModeRef, currentUser) {
+export function createVideoMarker(video, navigate, currentUser) {
   const element = createVideoMarkerElement(
     video,
     () => {
-      if (editModeRef?.current) return;
       navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
     }
   );

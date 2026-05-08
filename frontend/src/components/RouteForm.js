@@ -114,7 +114,7 @@ export const RouteForm = ({
             maxLength={100}
             required
           />
-          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '5px' }}>
             {formData.title?.length || 0}/100
           </div>
         </div>
@@ -136,7 +136,7 @@ export const RouteForm = ({
               minHeight: "unset", // Отменяем min-height из CSS, чтобы работал авто-ресайз
             }}
           />
-          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '2px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#666', textAlign: 'right', marginTop: '5px' }}>
             {formData.description?.length || 0}/1000
           </div>
         </div>

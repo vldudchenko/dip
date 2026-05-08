@@ -232,7 +232,7 @@ class SessionService {
     const { data, error } = await supabaseAdmin
       .from('session_participants')
       .select(`
-        session:route_sessions (
+        session:route_sessions!inner (
           id,
           route_id,
           start_date,
@@ -240,10 +240,14 @@ class SessionService {
           start_time,
           end_time,
           status,
+          price,
+          min_people,
+          max_people,
           participants_count,
           route:routes (
             id,
-            title
+            title,
+            path_data
           ),
           guide:users (
             id,
@@ -253,7 +257,7 @@ class SessionService {
         )
       `)
       .eq('user_id', userId)
-      .order('start_date', { ascending: false });
+      .order('start_date', { foreignTable: 'session', ascending: false });
 
     if (error) throw error;
 

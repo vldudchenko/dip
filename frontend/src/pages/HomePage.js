@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_URL } from '../utils/constants';
 import { api } from '../api';
 import { RouteCard } from '../components/RouteCard';
-import { SkeletonCard } from '../components/SkeletonCard';
+import { SkeletonCard } from '../components/Skeletons/SkeletonCard';
 import '../styles/homePage.css';
 
 /**

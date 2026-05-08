@@ -13,16 +13,27 @@ export function createVideoIcon(video, isHighlighted = false) {
   return L.divIcon({
     className: '',
     html: `
-      <div class="VideoMarker" style="cursor:pointer;">
+      <div class="VideoMarker" style="
+        cursor:pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      ">
         <img
           src="${avatarUrl}"
           alt="${login}"
           style="
-            width:50px;
-            height:50px;
+            width:100%;
+            height:100%;
             border-radius:50%;
             border:3px solid ${borderColor};
-            box-shadow:0 2px 8px rgba(0,0,0,0.3);
             object-fit:cover;
             display:block;
           "

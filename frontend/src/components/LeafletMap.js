@@ -33,40 +33,52 @@ function useDebounce(value, delay) {
 
 const getTransportIcon = (type) => getTransportOption(type).icon;
 
-export const LeafletMap = ({ 
-  videos, 
-  mode = 'videos', 
-  editMode = false,
+export function LeafletMap({
+  videos = [],
+  mode = 'videos', // videos, route-editor, route-viewer, point-selector
+  onMapClick,
+  onPointDragEnd,
+  onPointClick,
+  onPointChange,
+  activePointIndex,
+  selectedPoint,
   routePoints = [],
-  ...props 
-}) => {
+  highlightedVideoId: propHighlightedVideoId,
+  disableFetchOnMove = false,
+  showPath = true,
+  showVideos = true,
+  ...props
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
+  const [map, setMap] = useState(null);
   const userRef = useRef({ id: localStorage.getItem('user_id') });
-  
+
   const videoMarkersRef = useRef([]);
   const routeLayersRef = useRef({ polylines: [], markers: [] });
   const selectionMarkerRef = useRef(null);
+  const selectedPointMarkerRef = useRef(null);
   const activeLiveControllerRef = useRef(null);
   const popupMarkerRef = useRef(null);
   const highlightedVideoIdRef = useRef(null);
   const currentPopupElementRef = useRef(null);
 
   // Refs for callbacks to avoid effect dependencies
-  const onPointChangeRef = useRef(props.onPointChange);
-  const onPointDragEndRef = useRef(props.onPointDragEnd);
-  const onPointClickRef = useRef(props.onPointClick);
-  const fetchVideosRef = useRef(props.onFetchVideos);
-  const editModeRef = useRef(editMode);
+  const onPointChangeRef = useRef(onPointChange);
+  const onPointDragEndRef = useRef(onPointDragEnd);
+  const onPointClickRef = useRef(onPointClick);
+  const fetchVideosRef = useRef(props.fetchVideos);
   const lastFetchCoordsRef = useRef({ lat: null, lng: null });
+  const onMapClickRef = useRef(onMapClick);
 
-  useEffect(() => { onPointChangeRef.current = props.onPointChange; }, [props.onPointChange]);
-  useEffect(() => { onPointDragEndRef.current = props.onPointDragEnd; }, [props.onPointDragEnd]);
-  useEffect(() => { onPointClickRef.current = props.onPointClick; }, [props.onPointClick]);
-  useEffect(() => { fetchVideosRef.current = props.onFetchVideos; }, [props.onFetchVideos]);
-  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+  useEffect(() => { onMapClickRef.current = onMapClick; }, [onMapClick]);
+
+  useEffect(() => { onPointChangeRef.current = onPointChange; }, [onPointChange]);
+  useEffect(() => { onPointDragEndRef.current = onPointDragEnd; }, [onPointDragEnd]);
+  useEffect(() => { onPointClickRef.current = onPointClick; }, [onPointClick]);
+  useEffect(() => { fetchVideosRef.current = props.fetchVideos; }, [props.fetchVideos]);
 
   const [mapCenter, setMapCenter] = useState(MAP_DEFAULT_CENTER);
   const [highlightedVideoId, setHighlightedVideoId] = useState(null);
@@ -76,7 +88,7 @@ export const LeafletMap = ({
     if (!mapContainerRef.current || mapRef.current) return;
 
     const savedState = loadOsmMapState(MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM);
-    const map = L.map(mapContainerRef.current, {
+    const mapInstance = L.map(mapContainerRef.current, {
       center: [savedState.center[1], savedState.center[0]],
       zoom: savedState.zoom,
       zoomControl: false,
@@ -86,139 +98,37 @@ export const LeafletMap = ({
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 20
-    }).addTo(map);
+    }).addTo(mapInstance);
 
     // Зум-контролы скрыты по просьбе пользователя
 
-    map.on('moveend', () => {
-      const center = map.getCenter();
-      const zoom = map.getZoom();
+    mapInstance.on('moveend', () => {
+      const center = mapInstance.getCenter();
+      const zoom = mapInstance.getZoom();
       const newCoords = [center.lng, center.lat];
       setMapCenter(newCoords);
       saveOsmMapState(newCoords, zoom);
     });
 
-    mapRef.current = map;
+    mapRef.current = mapInstance;
+    setMap(mapInstance);
 
-    // Клик по карте для добавления видео в режиме редактирования
-    let uploading = false;
-    map.on('click', (e) => {
-      if (mode === 'route-editor') {
-        props.onMapClick?.([e.latlng.lng, e.latlng.lat]);
-        return;
+    mapInstance.on('click', (e) => {
+      if (mode === 'route-editor' || mode === 'point-selector') {
+        // Передаем координаты в формате [lng, lat]
+        onMapClickRef.current?.([e.latlng.lng, e.latlng.lat]);
       }
-
-      if (!editModeRef.current || mode !== 'videos' || uploading) return;
-
-      const coords = [e.latlng.lng, e.latlng.lat];
-      
-      const handleLiveRouteSelect = (startPoint, isActive) => {
-        if (isActive && startPoint) {
-          activeLiveControllerRef.current?.reset();
-          const controller = createLeafletLiveController(map);
-          activeLiveControllerRef.current = controller;
-          controller.activate(startPoint);
-          return;
-        }
-        activeLiveControllerRef.current?.reset();
-        activeLiveControllerRef.current = null;
-      };
-
-      const { popupElement, uploadButton } = createUploadPopupElement(
-        { addChild: () => {}, removeChild: () => {} },
-        coords,
-        async (uploadData) => {
-          uploading = true;
-          uploadButton.disabled = true;
-          uploadButton.textContent = 'Загрузка...';
-          try {
-            const { file, isLive, coordinates, routeStart, routeEnd, routeGeometry, videoDuration } = uploadData;
-            const formData = new FormData();
-            formData.append('video', file);
-            formData.append('userId', userRef.current.id);
-            formData.append('latitude', coordinates[1]);
-            formData.append('longitude', coordinates[0]);
-            formData.append('isLive', isLive);
-            if (isLive) {
-              formData.append('routeStart', JSON.stringify(routeStart));
-              formData.append('routeEnd', JSON.stringify(routeEnd));
-              formData.append('routeGeometry', JSON.stringify(routeGeometry));
-              formData.append('videoDuration', videoDuration);
-            }
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/videos`, { method: 'POST', body: formData });
-            const result = await res.json();
-            if (result?.success) {
-              activeLiveControllerRef.current?.reset();
-              activeLiveControllerRef.current = null;
-              if (selectionMarkerRef.current) {
-                selectionMarkerRef.current.remove();
-                selectionMarkerRef.current = null;
-              }
-              refreshVideosRef.current?.();
-              return { success: true };
-            }
-            const errorText = result?.error || 'Ошибка загрузки';
-            alert(errorText);
-            uploading = false;
-            uploadButton.disabled = false;
-            uploadButton.textContent = 'Загрузить видео';
-            return { success: false, error: errorText };
-          } catch (error) {
-            console.error('Upload error:', error);
-            alert('Ошибка загрузки видео');
-            uploading = false;
-            uploadButton.disabled = false;
-            uploadButton.textContent = 'Загрузить видео';
-            return { success: false, error: 'Ошибка загрузки видео' };
-          }
-        },
-        () => {
-          activeLiveControllerRef.current?.reset();
-          activeLiveControllerRef.current = null;
-          if (selectionMarkerRef.current) {
-            selectionMarkerRef.current.remove();
-            selectionMarkerRef.current = null;
-          }
-        },
-        uploading,
-        handleLiveRouteSelect,
-        true // isLeaflet
-      );
-
-      currentPopupElementRef.current = popupElement;
-
-      const [pLat, pLng] = [coords[1], coords[0]];
-      const selIcon = L.divIcon({
-        className: '',
-        html: '<div style="width:16px;height:16px;background:#7c3aed;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);transform:translate(-50%,-50%);"></div>',
-        iconSize: [0, 0], iconAnchor: [0, 0]
-      });
-
-      const marker = L.marker([pLat, pLng], { icon: selIcon });
-      marker.addTo(map);
-
-      const leafletPopup = L.popup({ 
-        offset: [0, -8], 
-        closeButton: false, 
-        autoClose: false, 
-        closeOnClick: false, 
-        className: 'clean-popup',
-        autoPanPadding: [50, 150]
-      }).setContent(popupElement);
-      marker.bindPopup(leafletPopup).openPopup();
-
-      selectionMarkerRef.current = marker;
     });
 
     return () => {
-      map.remove();
+      mapInstance.remove();
+      setMap(null);
       mapRef.current = null;
     };
   }, []);
 
-  // ─── Переход со страницы видео (state с координатами) ─────────────────
+// ─── Переход со страницы видео (state с координатами) ─────────────────
   useEffect(() => {
-    const map = mapRef.current;
     if (!map) return;
     const state = location.state;
     if (state?.center && state?.highlightedVideoId) {
@@ -234,18 +144,14 @@ export const LeafletMap = ({
     }
   }, [location.state, navigate]);
 
-  // ─── Удаление маркера выделения при выходе из editMode ────────────────
-  useEffect(() => {
-    if (!editMode && selectionMarkerRef.current) {
-      selectionMarkerRef.current.remove();
-      selectionMarkerRef.current = null;
-    }
-  }, [editMode]);
 
-  // ─── Маркеры видео ────────────────────────────────────────────────────
+// ─── Маркеры видео ────────────────────────────────────────────────────
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || (mode === 'route-editor' || mode === 'route-viewer')) return;
+    if (!map || mode === 'route-editor' || !showVideos) {
+      videoMarkersRef.current.forEach(m => m.remove());
+      videoMarkersRef.current = [];
+      return;
+    }
 
     videoMarkersRef.current.forEach(m => m.remove());
     videoMarkersRef.current = [];
@@ -259,7 +165,6 @@ export const LeafletMap = ({
         const [lng, lat] = feature.geometry.coordinates;
         const marker = L.marker([lat, lng], { icon });
         marker.on('click', () => {
-          if (editModeRef.current) return;
           navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
         });
         marker.addTo(map);
@@ -273,18 +178,28 @@ export const LeafletMap = ({
       videoMarkersRef.current.forEach(m => m.remove());
       videoMarkersRef.current = [];
     };
-  }, [mapRef.current, videos, highlightedVideoId, navigate, mode]);
+  }, [map, videos, highlightedVideoId, navigate, mode, showVideos]);
 
-  // ─── Маркеры и линии маршрута ─────────────────────────────────────────
+// ─── Маркеры и линии маршрута ─────────────────────────────────────────
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || (mode !== 'route-editor' && mode !== 'route-viewer')) return;
+    if (!map || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'point-selector')) return;
+
+    if (!showPath) {
+      routeLayersRef.current.polylines.forEach(l => l.remove());
+      routeLayersRef.current.markers.forEach(m => m.remove());
+      routeLayersRef.current = { polylines: [], markers: [] };
+      if (popupMarkerRef.current) {
+        popupMarkerRef.current.remove();
+        popupMarkerRef.current = null;
+      }
+      return;
+    }
 
     // Очищаем предыдущий рендер
     routeLayersRef.current.polylines.forEach(l => l.remove());
     routeLayersRef.current.markers.forEach(m => m.remove());
     routeLayersRef.current = { polylines: [], markers: [] };
-    
+
     // Очищаем попап через удаление из карты
     if (popupMarkerRef.current) {
       popupMarkerRef.current.remove();
@@ -337,22 +252,22 @@ export const LeafletMap = ({
       }
     });
 
-    if (mode === 'route-viewer' && routePoints.length > 0) {
+    if ((mode === 'route-viewer' || mode === 'point-selector') && routePoints.length > 0) {
       const allCoords = routePoints.map(p => Array.isArray(p) ? p : p?.coords).filter(Boolean);
       const bounds = getBoundsFromCoords(allCoords);
       if (bounds) {
-        map.fitBounds(bounds, { padding: [40, 40] });
+        map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
       }
     }
 
     // Попап выбора типа остановки
-    const targetIndex = props.activePointIndex;
+    const targetIndex = activePointIndex;
     if (targetIndex !== null && targetIndex !== undefined && routePoints[targetIndex]) {
       const pointData = routePoints[targetIndex];
       const coords = Array.isArray(pointData) ? pointData : pointData.coords;
       if (coords) {
         const [lng, lat] = coords;
-        
+
         const popupEl = createStopTypePopupElement({
           currentType: pointData.stop_type,
           onSelect: (newType) => {
@@ -366,17 +281,17 @@ export const LeafletMap = ({
         });
 
         // Используем L.popup напрямую на карте без промежуточного маркера
-        const popup = L.popup({ 
-          offset: [0, -10], 
-          closeButton: false, 
-          autoClose: false, 
-          closeOnClick: false, 
+        const popup = L.popup({
+          offset: [0, -10],
+          closeButton: false,
+          autoClose: false,
+          closeOnClick: false,
           className: 'clean-popup',
-          autoPanPadding: [50, 150] 
+          autoPanPadding: [50, 150]
         })
-        .setLatLng([lat, lng])
-        .setContent(popupEl);
-        
+          .setLatLng([lat, lng])
+          .setContent(popupEl);
+
         // Открываем попап
         popup.addTo(map);
         popupMarkerRef.current = popup;
@@ -391,13 +306,53 @@ export const LeafletMap = ({
         popupMarkerRef.current = null;
       }
     };
-  }, [mapRef.current, routePoints, mode, props.activePointIndex]);
+  }, [map, routePoints, mode, activePointIndex, showPath]);
 
-  // ─── Debounced загрузка видео по координатам ──────────────────────────
-  const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
+// ─── Маркер выбранной точки (point-selector) ──────────────────────────
+  useEffect(() => {
+    if (!map || mode !== 'point-selector') return;
+
+    if (selectedPointMarkerRef.current) {
+      selectedPointMarkerRef.current.remove();
+      selectedPointMarkerRef.current = null;
+    }
+
+    if (selectedPoint) {
+      const [lng, lat] = selectedPoint;
+      const icon = L.divIcon({
+        className: '',
+        html: '<div style="width:20px;height:20px;background:#6366f1;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,0.4);transform:translate(-50%,-50%);"></div>',
+        iconSize: [0, 0]
+      });
+
+      const marker = L.marker([lat, lng], {
+        icon,
+        draggable: true,
+        zIndexOffset: 1000
+      });
+
+      marker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        onMapClick?.([pos.lng, pos.lat]);
+      });
+
+      marker.addTo(map);
+      selectedPointMarkerRef.current = marker;
+    }
+
+    return () => {
+      if (selectedPointMarkerRef.current) {
+        selectedPointMarkerRef.current.remove();
+        selectedPointMarkerRef.current = null;
+      }
+    };
+  }, [map, mode, selectedPoint]);
+
+// ─── Debounced загрузка видео по координатам ──────────────────────────
+const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
 
   useEffect(() => {
-    if (!mapRef.current || mode !== 'videos') return;
+    if (!map || mode !== 'videos' || disableFetchOnMove) return;
     const [lng, lat] = debouncedCenter;
     const last = lastFetchCoordsRef.current;
     if (
@@ -448,13 +403,13 @@ function createLeafletLiveController(map) {
       const onClick = (e) => {
         const endCoords = [e.latlng.lng, e.latlng.lat];
         const geometry = [[startPoint[0], startPoint[1]], [endCoords[0], endCoords[1]]];
-        
+
         // Находим текущий попап и обновляем его
         const popups = document.querySelectorAll('.upload-popup');
         popups.forEach(p => {
           if (p.updateSecondPoint) p.updateSecondPoint(endCoords, geometry);
         });
-        
+
         cleanup();
       };
 

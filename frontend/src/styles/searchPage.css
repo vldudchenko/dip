@@ -1,0 +1,75 @@
+.search-page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem 2rem 2rem;
+  color: #fff;
+}
+
+.search-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.search-header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.results-section {
+  margin-bottom: 4rem;
+}
+
+.results-section h2 {
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.no-results {
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
+/* Guides Search Items */
+.guides-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.guide-search-item {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(5px);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.guide-search-item:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.guide-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+.guide-info h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}

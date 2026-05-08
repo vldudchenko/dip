@@ -5,7 +5,7 @@
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0 2rem 2rem 2rem;
 }
 
 .home-header {
@@ -13,7 +13,7 @@
 }
 
 .home-header h1 {
-  color: #333;
+  color: #ffffff;
   margin-bottom: 0.5rem;
 }
 

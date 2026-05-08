@@ -35,7 +35,7 @@ button {
 .btn {
   padding: 0.625rem 1.25rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 15px;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -76,7 +76,6 @@ button {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
 }
 
 .form-group label {
@@ -203,8 +202,13 @@ button {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-content {
@@ -218,8 +222,15 @@ button {
 }
 
 @keyframes slideIn {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .modal-title {
@@ -267,3 +278,198 @@ button {
   background: #dc2626;
 }
 
+/* ============================================
+   Общие компоненты: Сессии
+   ============================================ */
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.session-card {
+  background: #f8f9fa;
+  padding: 1.25rem;
+  border-radius: 12px;
+  border-left: 4px solid #7c3aed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-main-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-route-title {
+  margin: 0;
+  color: #7c3aed;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.session-route-title:hover {
+  text-decoration: underline;
+}
+
+.session-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.session-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.info-icon {
+  font-size: 1.1rem;
+}
+
+.session-info-item.price {
+  font-weight: 600;
+}
+
+.session-status-badge {
+  height: 32px;
+  line-height: 30px;
+  padding: 0 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  text-align: center;
+  text-align-last: center;
+  display: inline-block;
+  min-width: 140px;
+  box-sizing: border-box;
+  font-family: inherit;
+  vertical-align: middle;
+  margin: 0;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.session-status-badge:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.session-status-badge:not(:disabled):hover {
+  filter: brightness(0.92);
+}
+
+.session-status-badge.status-waiting,
+.status-waiting {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #d1d5db;
+}
+
+.session-status-badge.status-pending,
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.session-status-badge.status-in-progress,
+.status-in-progress {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #ddd6fe;
+}
+
+.session-status-badge.status-completed,
+.status-completed {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+}
+
+.session-status-badge.status-cancelled,
+.status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.session-footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.session-guide {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #333;
+}
+
+.session-guide-name {
+  color: #333;
+}
+
+.session-info-label {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.session-guide-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.session-guide-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.session-participants-list {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.participants-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.participant-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid white;
+  margin-left: -8px;
+  object-fit: cover;
+}
+
+.participant-avatar:first-child {
+  margin-left: 0;
+}

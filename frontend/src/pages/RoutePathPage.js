@@ -31,10 +31,15 @@ export const RoutePathPage = () => {
   // Состояние для следующей точки
   const [nextTransport, setNextTransport] = useState('walking');
   const [nextStopType, setNextStopType] = useState('none');
+  const [activePickerIndex, setActivePickerIndex] = useState(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [pendingFinishIndex, setPendingFinishIndex] = useState(null);
-  const [activePickerIndex, setActivePickerIndex] = useState(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
+  const [validationShowCancel, setValidationShowCancel] = useState(true);
+  const [showFinishNotAtEndModal, setShowFinishNotAtEndModal] = useState(false);
+  const [showMakeFinishModal, setShowMakeFinishModal] = useState(false);
 
 
 
@@ -139,6 +144,18 @@ export const RoutePathPage = () => {
     setPendingFinishIndex(null);
   };
 
+  const makeLastPointFinish = () => {
+    setUndoStack(prev => [...prev, pointsRef.current]);
+    setPoints(prev => {
+      if (prev.length === 0) return prev;
+      const next = [...prev];
+      const lastIndex = next.length - 1;
+      next[lastIndex] = { ...next[lastIndex], stop_type: 'finish' };
+      return next;
+    });
+    setShowMakeFinishModal(false);
+  };
+
 
   const handlePointDelete = (index) => {
     setUndoStack(prev => [...prev, pointsRef.current]);
@@ -192,7 +209,9 @@ export const RoutePathPage = () => {
   const handleSave = () => {
     // Валидация перед сохранением
     if (points.length < 2) {
-      alert('Маршрут должен содержать как минимум 2 точки: старт и финиш.');
+      setValidationMessage('Маршрут должен содержать как минимум 2 точки: старт и финиш.');
+      setValidationShowCancel(false);
+      setShowValidationModal(true);
       return;
     }
 
@@ -200,20 +219,21 @@ export const RoutePathPage = () => {
     const hasFinish = points.some(p => p.stop_type === 'finish');
 
     if (!hasStart) {
-      alert('Маршрут должен иметь стартовую точку.');
+      setValidationMessage('Маршрут должен иметь стартовую точку.');
+      setValidationShowCancel(false);
+      setShowValidationModal(true);
       return;
     }
 
     if (!hasFinish) {
-      alert('Маршрут должен иметь финишную точку.');
+      setShowMakeFinishModal(true);
       return;
     }
 
     const finishIndex = points.findIndex(p => p.stop_type === 'finish');
     if (finishIndex !== points.length - 1) {
-      if (!window.confirm('Финишная точка находится не в конце маршрута. Вы уверены, что хотите сохранить путь в таком виде? Все точки после финиша будут считаться лишними.')) {
-        return;
-      }
+      setShowFinishNotAtEndModal(true);
+      return;
     }
 
     setShowSaveModal(true);
@@ -235,7 +255,9 @@ export const RoutePathPage = () => {
 
       navigate(`/route/${id}`);
     } catch (err) {
-      alert(err.message);
+      setValidationMessage(err.message);
+      setValidationShowCancel(false);
+      setShowValidationModal(true);
     } finally {
       setSaving(false);
     }
@@ -274,6 +296,7 @@ export const RoutePathPage = () => {
             ymapsReady={ymapsReady}
             loadError={loadError}
             configLoaded={true}
+            hideLeftControls={true}
           />
 
         </div>
@@ -394,11 +417,58 @@ export const RoutePathPage = () => {
       <ConfirmModal
         isOpen={showFinishModal}
         title="Установка финиша"
-        message="Вы устанавливаете финишную точку в середине пути. Это приведет к удалению всех последующих точек маршрута. Продолжить?"
-        confirmLabel="Удалить последующие"
+        message="При установке этой точки как финишной, все последующие точки маршрута будут удалены. Продолжить?"
+        confirmLabel="Да, удалить"
         confirmVariant="delete"
         onConfirm={applyFinishWithDelete}
-        onCancel={() => setShowFinishModal(false)}
+        onCancel={() => {
+          setShowFinishModal(false);
+          setPendingFinishIndex(null);
+        }}
+      />
+
+      {/* Модальное окно валидации */}
+      <ConfirmModal
+        isOpen={showValidationModal}
+        title="Внимание"
+        message={validationMessage}
+        confirmLabel="Ок"
+        confirmVariant="primary"
+        showCancel={validationShowCancel}
+        onConfirm={() => {
+          setShowValidationModal(false);
+          setValidationShowCancel(true);
+        }}
+        onCancel={() => {
+          setShowValidationModal(false);
+          setValidationShowCancel(true);
+        }}
+      />
+
+      {/* Модальное окно предложения сделать финишем */}
+      <ConfirmModal
+        isOpen={showMakeFinishModal}
+        title="Финишная точка"
+        message="Маршрут должен иметь финишную точку. Сделать последнюю точку финишной?"
+        confirmLabel="Да, сделать"
+        cancelLabel="Отмена"
+        confirmVariant="primary"
+        onConfirm={makeLastPointFinish}
+        onCancel={() => setShowMakeFinishModal(false)}
+      />
+
+      {/* Модальное окно подтверждения сохранения с финишем не в конце */}
+      <ConfirmModal
+        isOpen={showFinishNotAtEndModal}
+        title="Финиш не в конце"
+        message="Финишная точка находится не в конце маршрута. Вы уверены, что хотите сохранить путь в таком виде? Все точки после финиша будут считаться лишними."
+        confirmLabel="Сохранить"
+        confirmVariant="save"
+        onConfirm={() => {
+          setShowFinishNotAtEndModal(false);
+          setShowSaveModal(true);
+        }}
+        onCancel={() => setShowFinishNotAtEndModal(false)}
       />
     </div>
   );
