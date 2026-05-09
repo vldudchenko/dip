@@ -125,7 +125,7 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
         </div>
       </div>
       {sessionError && <div className="form-error">{sessionError}</div>}
-      <div className="form-actions" style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+      <div className="form-actions" style={{ display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'flex-end' }}>
         <button type="submit" className="btn btn--primary" disabled={loading}>
           {loading ? 'Создание...' : 'Создать прохождение'}
         </button>

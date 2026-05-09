@@ -473,3 +473,10 @@ button {
 .participant-avatar:first-child {
   margin-left: 0;
 }
+
+/* Стили для полей редактирования маршрута */
+.route-edit-input:focus {
+  outline: none !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1) !important;
+}

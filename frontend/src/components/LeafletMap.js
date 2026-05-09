@@ -42,11 +42,10 @@ export function LeafletMap({
   onPointChange,
   activePointIndex,
   selectedPoint,
-  routePoints = [],
-  highlightedVideoId: propHighlightedVideoId,
   disableFetchOnMove = false,
   showPath = true,
   showVideos = true,
+  routes = [],
   ...props
 }) {
   const navigate = useNavigate();
@@ -182,7 +181,7 @@ export function LeafletMap({
 
 // ─── Маркеры и линии маршрута ─────────────────────────────────────────
   useEffect(() => {
-    if (!map || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'point-selector')) return;
+    if (!map || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'point-selector' && mode !== 'videos')) return;
 
     if (!showPath) {
       routeLayersRef.current.polylines.forEach(l => l.remove());
@@ -206,95 +205,114 @@ export function LeafletMap({
       popupMarkerRef.current = null;
     }
 
-    if (!routePoints || routePoints.length === 0) return;
+    // Если передан список маршрутов, отрисовываем их все
+    const routesToRender = routes.length > 0 ? routes : (props.routePoints ? [{ path_data: props.routePoints }] : []);
 
-    routePoints.forEach((pointData, index) => {
-      const coords = Array.isArray(pointData) ? pointData : pointData.coords;
-      if (!coords) return;
+    if (routesToRender.length === 0) return;
 
-      const isStart = pointData.type === 'start' || index === 0;
-      const transportType = pointData.transport || 'walking';
-      const transportColor = getTransportOption(transportType).color;
-      const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
+    routesToRender.forEach((route) => {
+      const points = route.path_data || [];
+      if (!points || points.length === 0) return;
 
-      const icon = createRoutePointIcon(pointData, isStart, transportColor, stopTypeLabel);
-      const [lng, lat] = coords;
-      const marker = L.marker([lat, lng], {
-        icon,
-        draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+      points.forEach((pointData, index) => {
+        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+        if (!coords) return;
+
+        const isStart = pointData.type === 'start' || index === 0;
+        const transportType = pointData.transport || 'walking';
+        const transportColor = getTransportOption(transportType).color;
+        const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
+
+        const icon = createRoutePointIcon(pointData, isStart, transportColor, stopTypeLabel);
+        const [lng, lat] = coords;
+        const marker = L.marker([lat, lng], {
+          icon,
+          draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+        });
+
+        if (mode === 'route-editor' && index !== 0) {
+          marker.on('click', (e) => {
+            e.originalEvent?.stopPropagation();
+            onPointClickRef.current?.(index);
+          });
+        }
+
+        if (mode === 'route-editor' && onPointDragEndRef.current) {
+          marker.on('dragend', (e) => {
+            const pos = e.target.getLatLng();
+            onPointDragEndRef.current(index, [pos.lng, pos.lat]);
+          });
+        }
+
+        marker.addTo(map);
+        routeLayersRef.current.markers.push(marker);
+
+        if (index > 0) {
+          const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
+          const color = getTransportOption(transportType).color;
+          const polyline = L.polyline([toLeafletLatLng(prevCoords), toLeafletLatLng(coords)], {
+            color, weight: 4, opacity: 0.85,
+          });
+          polyline.addTo(map);
+          routeLayersRef.current.polylines.push(polyline);
+        }
       });
-
-      if (mode === 'route-editor' && index !== 0) {
-        marker.on('click', (e) => {
-          e.originalEvent?.stopPropagation();
-          onPointClickRef.current?.(index);
-        });
-      }
-
-      if (mode === 'route-editor' && onPointDragEndRef.current) {
-        marker.on('dragend', (e) => {
-          const pos = e.target.getLatLng();
-          onPointDragEndRef.current(index, [pos.lng, pos.lat]);
-        });
-      }
-
-      marker.addTo(map);
-      routeLayersRef.current.markers.push(marker);
-
-      if (index > 0) {
-        const prevCoords = Array.isArray(routePoints[index - 1]) ? routePoints[index - 1] : routePoints[index - 1].coords;
-        const color = getTransportOption(transportType).color;
-        const polyline = L.polyline([toLeafletLatLng(prevCoords), toLeafletLatLng(coords)], {
-          color, weight: 4, opacity: 0.85,
-        });
-        polyline.addTo(map);
-        routeLayersRef.current.polylines.push(polyline);
-      }
     });
 
-    if ((mode === 'route-viewer' || mode === 'point-selector') && routePoints.length > 0) {
-      const allCoords = routePoints.map(p => Array.isArray(p) ? p : p?.coords).filter(Boolean);
+    if ((mode === 'route-viewer' || mode === 'point-selector') && routesToRender.length > 0) {
+      const allCoords = [];
+      routesToRender.forEach(r => {
+        const points = r.path_data || [];
+        points.forEach(p => {
+          const coords = Array.isArray(p) ? p : p?.coords;
+          if (coords) allCoords.push(coords);
+        });
+      });
+      
       const bounds = getBoundsFromCoords(allCoords);
       if (bounds) {
         map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
       }
     }
 
-    // Попап выбора типа остановки
-    const targetIndex = activePointIndex;
-    if (targetIndex !== null && targetIndex !== undefined && routePoints[targetIndex]) {
-      const pointData = routePoints[targetIndex];
-      const coords = Array.isArray(pointData) ? pointData : pointData.coords;
-      if (coords) {
-        const [lng, lat] = coords;
+    // Попап выбора типа остановки (только для режима редактора)
+    if (mode === 'route-editor') {
+      const targetIndex = activePointIndex;
+      const points = routesToRender[0]?.path_data || [];
+      if (targetIndex !== null && targetIndex !== undefined && points[targetIndex]) {
+        const pointData = points[targetIndex];
+        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+        if (coords) {
+          const [lng, lat] = coords;
 
-        const popupEl = createStopTypePopupElement({
-          currentType: pointData.stop_type,
-          onSelect: (newType) => {
-            onPointChangeRef.current?.(targetIndex, 'stop_type', newType);
-            onPointClickRef.current?.(null);
-          },
-          onCancel: () => {
-            onPointClickRef.current?.(null);
-          },
-          isLeaflet: true
-        });
+          const popupEl = createStopTypePopupElement({
+            currentType: pointData.stop_type,
+            onSelect: (newType) => {
+              onPointChangeRef.current?.(targetIndex, 'stop_type', newType);
+              onPointClickRef.current?.(null);
+            },
+            onCancel: () => {
+              onPointClickRef.current?.(null);
+            },
+            isLeaflet: true
+          });
 
-        // Используем L.popup напрямую на карте без промежуточного маркера
-        const popup = L.popup({
-          offset: [0, -10],
-          closeButton: false,
-          autoClose: false,
-          closeOnClick: false,
-          className: 'clean-popup',
-          autoPanPadding: [50, 150]
-        })
-          .setLatLng([lat, lng])
-          .setContent(popupEl);
+          // Используем L.popup напрямую на карте без промежуточного маркера
+          const popup = L.popup({
+            offset: [0, -10],
+            closeButton: false,
+            autoClose: false,
+            closeOnClick: false,
+            className: 'clean-popup',
+            autoPanPadding: [50, 150]
+          })
+            .setLatLng([lat, lng])
+            .setContent(popupEl);
 
-        // Открываем попап
-        popup.addTo(map);
-        popupMarkerRef.current = popup;
+          // Открываем попап
+          popup.addTo(map);
+          popupMarkerRef.current = popup;
+        }
       }
     }
 
@@ -306,7 +324,7 @@ export function LeafletMap({
         popupMarkerRef.current = null;
       }
     };
-  }, [map, routePoints, mode, activePointIndex, showPath]);
+  }, [map, routes, props.routePoints, mode, activePointIndex, showPath]);
 
 // ─── Маркер выбранной точки (point-selector) ──────────────────────────
   useEffect(() => {

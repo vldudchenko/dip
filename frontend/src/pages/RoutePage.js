@@ -255,6 +255,47 @@ export const RoutePage = () => {
   const [activeReplyId, setActiveReplyId] = useState(null);
   const [activeEditId, setActiveEditId] = useState(null);
   const [isMediaHovered, setIsMediaHovered] = useState(false);
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [showDeleteRouteModal, setShowDeleteRouteModal] = useState(false);
+  const [activeSessionEditId, setActiveSessionEditId] = useState(null);
+
+  const handleStartEditInfo = () => {
+    setEditTitle(route.title);
+    setEditDescription(route.description || '');
+    setIsEditingInfo(true);
+  };
+
+  const handleSaveInfo = async () => {
+    if (!editTitle.trim()) {
+      alert('Название не может быть пустым');
+      return;
+    }
+    setSavingInfo(true);
+    try {
+      const response = await fetch(`${API_URL}/routes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle,
+          description: editDescription
+        })
+      });
+
+      if (!response.ok) throw new Error('Не удалось сохранить изменения');
+
+      const updatedRoute = await response.json();
+      setRoute(prev => ({ ...prev, title: updatedRoute.title, description: updatedRoute.description }));
+      setIsEditingInfo(false);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSavingInfo(false);
+    }
+  };
 
   const handleToggleMainForm = () => {
     const newState = !showCommentForm;
@@ -862,6 +903,23 @@ export const RoutePage = () => {
     }
   };
 
+  const handleDeleteRoute = async () => {
+    try {
+      const response = await fetch(`${API_URL}/routes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (!response.ok) throw new Error('Не удалось удалить маршрут');
+      navigate('/');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShowDeleteRouteModal(false);
+    }
+  };
+
   const handleDeleteVideo = async () => {
     if (!videoToDelete) return;
     try {
@@ -888,9 +946,10 @@ export const RoutePage = () => {
     }
   };
 
-  const isRouteOwner = currentUserId === route?.guide_id;
-  const isAnyGuide = currentUser?.is_guide;
+  const isRouteOwner = currentUserId === route?.guide_id && !isPreviewMode;
+  const isAnyGuide = currentUser?.is_guide && !isPreviewMode;
   const isGuide = isRouteOwner; // Для совместимости с остальными частями кода, где это касается владения маршрутом
+  const realIsGuide = currentUserId === route?.guide_id; // Реальный статус гида без учета режима предпросмотра
 
   if (loading) {
     return <SkeletonRoutePage />;
@@ -912,22 +971,90 @@ export const RoutePage = () => {
         <div className="route-detail-content">
           <div className="route-detail-main">
             <div className="route-detail-header">
-              <h1>{route.title}</h1>
-              {isGuide && (
-                <button
-                  className="btn btn--primary btn--small"
-                  onClick={() => navigate(`/route/${id}/path`)}
-                >
-                  {route.path_data && route.path_data.length > 0 ? 'Редактировать путь' : 'Добавить путь'}
-                </button>
+              {isEditingInfo ? (
+                <div style={{ width: '100%', marginBottom: '20px' }}>
+                  <div style={{ marginBottom: '15px' }}>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="Название"
+                      maxLength={100}
+                      style={{
+                        width: '100%',
+                        fontSize: '2rem',
+                        fontWeight: 'bold',
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        fontFamily: 'inherit',
+                        color: '#333',
+                        outline: 'none'
+                      }}
+                      className="route-edit-input"
+                    />
+                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                      {editTitle.length}/100
+                    </div>
+                  </div>
+
+                  <div>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Описание"
+                      rows="4"
+                      maxLength={1000}
+                      style={{
+                        width: '100%',
+                        fontSize: '1rem',
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                        color: '#4b5563',
+                        lineHeight: '1.5',
+                        outline: 'none'
+                      }}
+                      className="route-edit-input"
+                    />
+                    <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                      {editDescription.length}/1000
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <button className="btn btn--primary btn--small" onClick={handleSaveInfo} disabled={savingInfo}>
+                      {savingInfo ? 'Сохранение...' : 'Сохранить'}
+                    </button>
+                    <button className="btn btn--secondary btn--small" onClick={() => setIsEditingInfo(false)}>
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                  <div style={{ flex: 1 }}>
+                    <h1 style={{ marginBottom: '10px', fontSize: '2rem', fontWeight: 'bold', color: '#333' }}>{route.title}</h1>
+                    {route.description && (
+                      <div className="route-detail-description" style={{ marginBottom: '20px' }}>
+                        <p style={{ fontSize: '1rem', color: '#4b5563', lineHeight: '1.5' }}>{route.description}</p>
+                      </div>
+                    )}
+                  </div>
+                  {isGuide && (
+                    <button
+                      className="btn btn--secondary btn--small"
+                      onClick={handleStartEditInfo}
+                      style={{ marginLeft: '20px' }}
+                    >
+                      Редактировать
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-
-            {route.description && (
-              <div className="route-detail-description">
-                <p>{route.description}</p>
-              </div>
-            )}
             <div className="route-summary" style={{ padding: '12px' }}>
               <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '4px 12px', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.2' }}>
                 {generateRouteDescription(route.path_data, routeAddresses).map((seg, idx) => (
@@ -1085,7 +1212,7 @@ export const RoutePage = () => {
 
             {allMedia.length === 0 && isGuide && (
               <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
-                <p style={{ color: '#6b7280', marginBottom: '15px' }}>Нет медиа. Загрузите фото или видео для маршрута.</p>
+                <p style={{ color: '#6b7280', marginBottom: '15px' }}>Загрузите фото или видео для маршрута.</p>
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
                   <label className="btn btn--secondary btn--small" style={{ cursor: 'pointer' }}>
                     Загрузить медиа
@@ -1095,36 +1222,64 @@ export const RoutePage = () => {
               </div>
             )}
 
-            <div className="route-detail-map" style={{ marginBottom: isGuide ? '20px' : '40px', position: 'relative' }}>
-              <div className="route-path-map-container" style={{ height: '400px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ddd', position: 'relative' }}>
-                <Map
-                  mode="route-viewer"
-                  routePoints={route.path_data}
-                  videos={routeVideos}
-                  ymapsReady={ymapsReady}
-                  loadError={loadError}
-                  configLoaded={true}
-                />
-                <div style={{
-                  position: 'absolute',
-                  bottom: '10px',
-                  left: '10px',
-                  zIndex: 1000,
-                  background: 'rgba(255, 255, 255, 0.9)',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #ccc',
-                  fontSize: '0.85rem',
-                  fontWeight: '600',
-                  color: '#374151',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}>
-                  Расстояние ~ {calculateTotalDistance(route.path_data).toFixed(1)} км
+            {(!route.path_data || route.path_data.length === 0) ? (
+              isGuide ? (
+                <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                  <p style={{ color: '#6b7280', marginBottom: '15px' }}>
+                    У данного маршрута еще не построен путь.<br />Перейдите на страницу построения маршрута, чтобы построить его.
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      className="btn btn--secondary btn--small"
+                      onClick={() => navigate(`/route/${id}/path`)}
+                    >
+                      Построить маршрут
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+                  <p style={{ color: '#6b7280' }}>Путь для этого маршрута еще не проложен автором.</p>
+                </div>
+              )
+            ) : (
+              <div className="route-detail-map" style={{ marginBottom: isGuide ? '20px' : '40px', position: 'relative' }}>
+                <div className="route-path-map-container" style={{ height: '400px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ddd', position: 'relative' }}>
+                  <Map
+                    mode="route-viewer"
+                    routePoints={route.path_data}
+                    videos={routeVideos}
+                    ymapsReady={ymapsReady}
+                    loadError={loadError}
+                    configLoaded={true}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    left: '10px',
+                    zIndex: 1000,
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #ccc',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    color: '#374151',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}>
+                    Расстояние ~ {calculateTotalDistance(route.path_data).toFixed(1)} км
+                  </div>
+                </div>
+
+                {isGuide && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <button className="btn btn--secondary btn--small" onClick={() => navigate(`/route/${id}/path`)}>
+                      Редактировать путь
+                    </button>
+                  </div>
+                )}
               </div>
-
-
-            </div>
+            )}
             {/* Заголовок сессий */}
             {(() => {
               const activeCount = sessions.filter(s => s.status !== 'completed').length;
@@ -1135,7 +1290,11 @@ export const RoutePage = () => {
                     {isAnyGuide && (
                       <button
                         className="btn btn--primary btn--small"
-                        onClick={() => setShowAddSession(!showAddSession)}
+                        onClick={() => {
+                          const newState = !showAddSession;
+                          setShowAddSession(newState);
+                          if (newState) setActiveSessionEditId(null);
+                        }}
                       >
                         {showAddSession ? 'Отмена' : 'Добавить'}
                       </button>
@@ -1208,6 +1367,15 @@ export const RoutePage = () => {
                           statusClasses={STATUS_CLASSES}
                           isLoggedIn={currentUserId !== null}
                           initialGuide={sessionGuides[session.guide_id]}
+                          isEditing={activeSessionEditId === session.id}
+                          onToggleEdit={(editing) => {
+                            if (editing) {
+                              setShowAddSession(false);
+                              setActiveSessionEditId(session.id);
+                            } else {
+                              setActiveSessionEditId(null);
+                            }
+                          }}
                         />
                       ))}
                       {totalPages > 1 && (
@@ -1375,6 +1543,28 @@ export const RoutePage = () => {
                       <span><strong>Пройдено:</strong> {routeStats.completed_sessions} раз(а)</span>
                     </div>
                   </div>
+
+                  {realIsGuide && (
+                    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <button 
+                        className={`btn ${isPreviewMode ? 'btn--primary' : 'btn--secondary'} btn--small`}
+                        onClick={() => setIsPreviewMode(!isPreviewMode)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        {isPreviewMode ? 'Редактирование' : 'Просмотр'}
+                      </button>
+
+                      {!isPreviewMode && (
+                        <button 
+                          className="btn btn--secondary btn--small"
+                          onClick={() => setShowDeleteRouteModal(true)}
+                          style={{ width: '100%', color: '#ef4444' }}
+                        >
+                          Удалить маршрут
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1407,6 +1597,14 @@ export const RoutePage = () => {
           confirmLabel="Удалить"
           onConfirm={handleDeleteSession}
           onCancel={() => setSessionToDelete(null)}
+        />
+        <ConfirmModal
+          isOpen={showDeleteRouteModal}
+          title="Удаление маршрута"
+          message="Вы уверены, что хотите полностью удалить этот маршрут? Это действие необратимо."
+          confirmLabel="Удалить"
+          onConfirm={handleDeleteRoute}
+          onCancel={() => setShowDeleteRouteModal(false)}
         />
       </div>
     </div>

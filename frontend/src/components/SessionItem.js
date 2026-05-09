@@ -231,7 +231,7 @@ export const SessionItem = ({
                     />
                   </div>
                 </div>
-                <div className="session-form-actions" style={{ display: 'flex', gap: '10px' }}>
+                <div className="session-form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button type="submit" className="btn btn--primary btn--small">Сохранить</button>
                   <button type="button" className="btn btn--secondary btn--small" onClick={() => onToggleEdit(false)}>Отмена</button>
                 </div>

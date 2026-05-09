@@ -9,7 +9,7 @@ import { MapProviderToggle } from './MapProviderToggle';
  * Автоматически выбирает нужную реализацию карты (OSM/Leaflet или Яндекс)
  * в зависимости от выбранного провайдера и показывает переключатель поверх карты.
  */
-export function Map({ ymapsReady, loadError, configLoaded, selectedPoint, onReset, hideLayerControl = false, hideLeftControls = false, ...props }) {
+export function Map({ ymapsReady, loadError, configLoaded, selectedPoint, onReset, routes = [], hideLayerControl = false, hideLeftControls = false, ...props }) {
   const { provider, setProvider } = useMapProvider();
   const [resetKey, setResetKey] = React.useState(0);
   const [showPath, setShowPath] = React.useState(true);
@@ -25,6 +25,7 @@ export function Map({ ymapsReady, loadError, configLoaded, selectedPoint, onRese
       ...props,
       showPath,
       showVideos,
+      routes,
       selectedPoint,
       key: resetKey
     };
@@ -67,30 +68,6 @@ export function Map({ ymapsReady, loadError, configLoaded, selectedPoint, onRese
         flexDirection: 'column',
         gap: '10px'
       }}>
-        {/* Сброс положения */}
-        <button
-          type="button"
-          onClick={() => {
-            setResetKey(prev => prev + 1);
-            onReset?.();
-          }}
-          className="btn btn--secondary btn--small map-reset-btn"
-          style={{
-            fontSize: '0.8rem',
-            padding: '6px 12px',
-            background: 'white',
-            border: '1.5px solid rgba(124, 58, 237, 0.2)',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.25)',
-            borderRadius: '8px',
-            fontWeight: '600',
-            color: '#555',
-            cursor: 'pointer',
-            width: 'fit-content'
-          }}
-        >
-          Сбросить положение
-        </button>
-
         {/* Управление слоями */}
         {!hideLayerControl && (
           <div className="map-layers-control" style={{

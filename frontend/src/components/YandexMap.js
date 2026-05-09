@@ -32,16 +32,10 @@ export function YandexMap({
   onUploadRef = { current: null }, 
   onFetchVideosRef = { current: null },
   mode = 'videos', // 'videos' | 'route-editor' | 'route-viewer'
-  routePoints = [],
-  onMapClick = null,
-  onPointDragEnd = null,
-  onPointClick = null,
-  onPointChange = null,
-  activePointIndex = null,
-  selectedPoint = null,
   disableFetchOnMove = false,
   showPath = true,
-  showVideos = true
+  showVideos = true,
+  routes = []
 }) {
   const [map, setMap] = useState(null);
   const [mapCenter, setMapCenter] = useState(() => {
@@ -176,7 +170,7 @@ export function YandexMap({
 
   // Рендер точек и линии маршрута
   useEffect(() => {
-    if (!map || !window.ymaps3 || (mode !== 'route-editor' && mode !== 'route-viewer')) return;
+    if (!map || !window.ymaps3 || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'videos')) return;
 
     if (!showPath) {
       const { polylines, markers } = routeFeaturesRef.current;
@@ -199,75 +193,87 @@ export function YandexMap({
     });
     routeFeaturesRef.current.markers = [];
 
-    if (!routePoints || routePoints.length === 0) return;
+    // Если передан список маршрутов, отрисовываем их все
+    const routesToRender = routes.length > 0 ? routes : (props.routePoints ? [{ path_data: props.routePoints }] : []);
 
-    routePoints.forEach((pointData, index) => {
-      const coords = Array.isArray(pointData) ? pointData : pointData.coords;
-      const isStart = pointData.type === 'start' || index === 0;
+    if (routesToRender.length === 0) return;
 
-      const transportType = pointData.transport || 'walking';
-      const transportColor = getTransportOption(transportType).color;
-      const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
+    routesToRender.forEach((route, routeIdx) => {
+      const points = route.path_data || [];
+      if (!points || points.length === 0) return;
 
-      const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel);
-      
-      if (mode === 'route-editor') {
-        el.onclick = (e) => {
-          e.stopPropagation();
-          if (index === 0) return; // Не открываем попап для старта
-          setActivePopupIndex(index);
-          if (onPointClickRef.current) {
-            onPointClickRef.current(index);
+      points.forEach((pointData, index) => {
+        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+        const isStart = pointData.type === 'start' || index === 0;
+
+        const transportType = pointData.transport || 'walking';
+        const transportColor = getTransportOption(transportType).color;
+        const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
+
+        const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel);
+        
+        if (mode === 'route-editor') {
+          el.onclick = (e) => {
+            e.stopPropagation();
+            if (index === 0) return; // Не открываем попап для старта
+            setActivePopupIndex(index);
+            if (onPointClickRef.current) {
+              onPointClickRef.current(index);
+            }
+          };
+        }
+
+
+        const markerOptions = {
+          coordinates: coords,
+          draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+          onDragEnd: (coordinates) => {
+            if (onPointDragEndRef.current) {
+              onPointDragEndRef.current(index, coordinates);
+            }
           }
         };
-      }
 
+        const marker = new YMapMarker(markerOptions, el);
+        map.addChild(marker);
+        routeFeaturesRef.current.markers.push(marker);
 
-      const markerOptions = {
-        coordinates: coords,
-        draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
-        onDragEnd: (coordinates) => {
-          if (onPointDragEndRef.current) {
-            onPointDragEndRef.current(index, coordinates);
-          }
+        // Рисуем линию от предыдущей точки к текущей
+        if (index > 0) {
+          const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
+          const color = getTransportOption(transportType).color;
+
+          const newPolyline = new YMapFeature({
+            id: `route-${routeIdx}-segment-${index}`,
+            geometry: {
+              type: 'LineString',
+              coordinates: [prevCoords, coords]
+            },
+            style: {
+              stroke: [{ color: color, width: 4 }]
+            }
+          });
+          map.addChild(newPolyline);
+          routeFeaturesRef.current.polylines.push(newPolyline);
         }
-      };
-
-      const marker = new YMapMarker(markerOptions, el);
-      map.addChild(marker);
-      routeFeaturesRef.current.markers.push(marker);
-
-      // Рисуем линию от предыдущей точки к текущей
-      if (index > 0) {
-        const prevCoords = Array.isArray(routePoints[index - 1]) ? routePoints[index - 1] : routePoints[index - 1].coords;
-        const color = getTransportOption(transportType).color;
-
-        const newPolyline = new YMapFeature({
-          id: `route-segment-${index}`,
-          geometry: {
-            type: 'LineString',
-            coordinates: [prevCoords, coords]
-          },
-          style: {
-            stroke: [{ color: color, width: 4 }]
-          }
-        });
-        map.addChild(newPolyline);
-        routeFeaturesRef.current.polylines.push(newPolyline);
-      }
+      });
     });
 
-    if ((mode === 'route-viewer' || mode === 'point-selector') && routePoints.length > 0) {
+    if ((mode === 'route-viewer' || mode === 'point-selector') && routesToRender.length > 0) {
       let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-      routePoints.forEach(p => {
-        const coords = Array.isArray(p) ? p : p.coords;
-        if (!coords) return;
-        const [lon, lat] = coords;
-        if (lon < minLon) minLon = lon;
-        if (lat < minLat) minLat = lat;
-        if (lon > maxLon) maxLon = lon;
-        if (lat > maxLat) maxLat = lat;
+      routesToRender.forEach(r => {
+        const points = r.path_data || [];
+        points.forEach(p => {
+          const coords = Array.isArray(p) ? p : p.coords;
+          if (!coords) return;
+          const [lon, lat] = coords;
+          if (lon < minLon) minLon = lon;
+          if (lat < minLat) minLat = lat;
+          if (lon > maxLon) maxLon = lon;
+          if (lat > maxLat) maxLat = lat;
+        });
       });
+      
       if (minLon !== Infinity) {
         const padding = 0.05;
         map.update({
@@ -282,29 +288,32 @@ export function YandexMap({
       }
     }
 
-    // Рисуем попап отдельно после всех маркеров, чтобы он был сверху
-    if (activePopupIndex !== null && routePoints[activePopupIndex]) {
-      const pointData = routePoints[activePopupIndex];
-      const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+    // Рисуем попап отдельно после всех маркеров, чтобы он был сверху (только в редакторе)
+    if (mode === 'route-editor' && activePopupIndex !== null) {
+      const points = routesToRender[0]?.path_data || [];
+      const pointData = points[activePopupIndex];
+      if (pointData) {
+        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
 
-      const popupEl = createStopTypePopupElement({
-        currentType: pointData.stop_type,
-        onSelect: (newType) => {
-          if (onPointChangeRef.current) {
-            onPointChangeRef.current(activePopupIndex, 'stop_type', newType);
+        const popupEl = createStopTypePopupElement({
+          currentType: pointData.stop_type,
+          onSelect: (newType) => {
+            if (onPointChangeRef.current) {
+              onPointChangeRef.current(activePopupIndex, 'stop_type', newType);
+            }
+            setActivePopupIndex(null);
+            if (onPointClickRef.current) onPointClickRef.current(null);
+          },
+          onCancel: () => {
+            setActivePopupIndex(null);
+            if (onPointClickRef.current) onPointClickRef.current(null);
           }
-          setActivePopupIndex(null);
-          if (onPointClickRef.current) onPointClickRef.current(null);
-        },
-        onCancel: () => {
-          setActivePopupIndex(null);
-          if (onPointClickRef.current) onPointClickRef.current(null);
-        }
-      });
-      
-      const popupMarker = new YMapMarker({ coordinates: coords }, popupEl);
-      map.addChild(popupMarker);
-      routeFeaturesRef.current.markers.push(popupMarker);
+        });
+        
+        const popupMarker = new YMapMarker({ coordinates: coords }, popupEl);
+        map.addChild(popupMarker);
+        routeFeaturesRef.current.markers.push(popupMarker);
+      }
     }
 
     return () => {
@@ -317,7 +326,7 @@ export function YandexMap({
         try { map.removeChild(marker); } catch (e) {}
       });
     };
-  }, [map, routePoints, mode, activePopupIndex, showPath]);
+  }, [map, routes, props.routePoints, mode, activePopupIndex, showPath]);
   
   // Рендер выбранной точки (point-selector)
   useEffect(() => {

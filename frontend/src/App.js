@@ -11,6 +11,7 @@ import { RoutePage } from './pages/RoutePage';
 import { RoutePathPage } from './pages/RoutePathPage';
 import { SearchPage } from './pages/SearchPage';
 import { PostVideoPage } from './pages/PostVideoPage';
+import { InteractiveMapPage } from './pages/InteractiveMapPage';
 
 import { useAuth } from './hooks/useAuth';
 import { useVideos } from './hooks/useVideos';
@@ -84,26 +85,7 @@ function App() {
           <Route path="/post-video" element={<PostVideoPage user={user} authLoading={authLoading} />} />
 
           <Route path="/map" element={
-            <div className="interactive-map-page" style={{ width: 'calc(100% - 2rem)', height: 'calc(100vh - 130px)', position: 'relative', borderRadius: '20px', overflow: 'hidden' }}>
-              <Map
-                user={user}
-                videos={videos}
-                fetchVideos={fetchVideos}
-                disableFetchOnMove={true}
-                onUploadRef={uploadHandlerRef}
-                onFetchVideosRef={fetchVideosRef}
-                ymapsReady={ymapsReady}
-                loadError={loadError}
-                configLoaded={configLoaded}
-                hideLayerControl={true}
-              />
-
-              {!user && (
-                <div className="login-prompt">
-                  <p>Войдите через Яндекс, чтобы загружать видео на карту</p>
-                </div>
-              )}
-            </div>
+            <InteractiveMapPage user={user} />
           } />
 
           <Route path="/user/:login" element={<UserPage />} />
