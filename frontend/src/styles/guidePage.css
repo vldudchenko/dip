@@ -20,12 +20,6 @@
   margin-bottom: 1rem;
 }
 
-.guide-avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-}
 
 .guide-info h1 {
   margin: 0 0 0.5rem;
@@ -60,7 +54,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
   border-bottom: 1px solid #e5e5e5;
   padding-bottom: 0.5rem;
   flex-wrap: wrap;
@@ -310,6 +303,50 @@
   width: 100%;
 }
 
+.sessions-filters {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.filters-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sort-select {
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background-color: #f9fafb;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.sort-select:hover {
+  border-color: #d1d5db;
+  background-color: #f3f4f6;
+}
+
+.sort-select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
 .session-info-main {
   display: flex;
   flex-direction: column;
@@ -326,8 +363,6 @@
   display: flex;
   align-items: center;
 }
-
-/* Статусы сессий теперь управляются общим классом .session-status-badge из routePage.css */
 
 .session-details-row {
   background: white;
@@ -354,7 +389,7 @@
   flex-direction: column;
   gap: 1rem;
   /* Фиксированная минимальная высота для 5 карточек, чтобы избежать скачков интерфейса */
-  min-height: 889px;
+  min-height: 784px;
 }
 
 @media (max-width: 768px) {

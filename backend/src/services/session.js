@@ -62,9 +62,9 @@ class SessionService {
       .from('route_sessions')
       .select(`
         *,
-        participants:session_participants (
+        session_participants (
           user_id,
-          users:users (
+          users (
             id,
             login,
             avatar
@@ -77,7 +77,10 @@ class SessionService {
 
     if (error) throw error;
 
-    return data;
+    return (data || []).map(s => ({
+      ...s,
+      participants: s.session_participants || []
+    }));
   }
 
   async getSessionById(id) {
@@ -87,10 +90,10 @@ class SessionService {
       .from('route_sessions')
       .select(`
         *,
-        participants:session_participants (
+        session_participants (
           user_id,
           joined_at,
-          users:users (
+          users (
             id,
             login,
             avatar
@@ -102,7 +105,10 @@ class SessionService {
 
     if (error) throw error;
 
-    return data;
+    return {
+      ...data,
+      participants: data.session_participants || []
+    };
   }
 
   async getSessionsByGuideId(guideId) {
@@ -116,9 +122,9 @@ class SessionService {
           id,
           title
         ),
-        participants:session_participants (
+        session_participants (
           user_id,
-          users:users (
+          users (
             id,
             login,
             avatar
@@ -130,7 +136,10 @@ class SessionService {
 
     if (error) throw error;
 
-    return data;
+    return (data || []).map(s => ({
+      ...s,
+      participants: s.session_participants || []
+    }));
   }
 
   async createSession(sessionData) {

@@ -17,8 +17,6 @@
 /* Комментарии */
 @import './styles/comments.css';
 
-/* Live Marker */
-@import './styles/liveMarker.css';
 
 /* Страницы: User, Guide, Route */
 @import './styles/userPage.css';

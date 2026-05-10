@@ -1,6 +1,6 @@
 import express from 'express';
 import { routesService } from '../services/routes.js';
-import { requireAuth } from '../middleware/errorHandler.js';
+import { requireAuth, requireGuide } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -68,9 +68,12 @@ router.post('/:id/view', requireAuth, async (req, res) => {
 /**
  * POST /api/routes - Создание нового маршрута
  */
-router.post('/', async (req, res) => {
+router.post('/', requireGuide, async (req, res) => {
   try {
-    const route = await routesService.createRoute(req.body);
+    const data = { ...req.body };
+    delete data.userId;
+    
+    const route = await routesService.createRoute(data);
     res.json(route);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -80,10 +83,21 @@ router.post('/', async (req, res) => {
 /**
  * PATCH /api/routes/:id - Обновление маршрута
  */
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireGuide, async (req, res) => {
   try {
-    const route = await routesService.updateRoute(req.params.id, req.body);
-    res.json(route);
+    const { userId } = req.body;
+    const route = await routesService.getRouteById(req.params.id);
+
+    if (route.guide_id !== userId) {
+      return res.status(403).json({ error: 'Вы не являетесь владельцем этого маршрута для редактирования' });
+    }
+
+    // Удаляем userId перед обновлением
+    const data = { ...req.body };
+    delete data.userId;
+
+    const updatedRoute = await routesService.updateRoute(req.params.id, data);
+    res.json(updatedRoute);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -92,8 +106,15 @@ router.patch('/:id', async (req, res) => {
 /**
  * DELETE /api/routes/:id - Удаление маршрута
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireGuide, async (req, res) => {
   try {
+    const { userId } = req.body;
+    const route = await routesService.getRouteById(req.params.id);
+
+    if (route.guide_id !== userId) {
+      return res.status(403).json({ error: 'Вы не являетесь владельцем этого маршрута' });
+    }
+
     await routesService.deleteRoute(req.params.id);
     res.json({ success: true });
   } catch (error) {

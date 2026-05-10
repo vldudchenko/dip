@@ -28,6 +28,7 @@ export function getConfig() {
 
 export const api = {
   async fetchUser(userId, forceRefresh = false) {
+    if (!userId || userId === 'undefined') return null;
     const cacheKey = `user:${userId}`;
     if (forceRefresh) {
       clearCache(cacheKey);
@@ -38,6 +39,10 @@ export const api = {
 
     try {
       const res = await fetch(`${API_URL}/users/${userId}`);
+      if (!res.ok) {
+        clearCache(cacheKey);
+        return null;
+      }
       const data = await res.json();
       setCache(cacheKey, data);
       return data;

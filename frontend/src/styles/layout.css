@@ -59,23 +59,8 @@
   gap: 1rem;
 }
 
-.header-user-info .user-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
 .user-profile {
-  cursor: pointer;
-  border-radius: 50%;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   line-height: 0;
-}
-
-.user-profile:hover {
-  transform: scale(1.05);
 }
 
 

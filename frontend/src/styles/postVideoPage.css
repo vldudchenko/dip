@@ -257,3 +257,117 @@
     font-size: 1.75rem;
   }
 }
+
+/* Список выбора маршрута/сессии (как на InteractiveMapPage) */
+.route-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Стилизация скроллбара для списка */
+.route-selection-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.route-selection-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.route-selection-list::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 10px;
+}
+
+.route-selection-list::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+.route-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1.5px solid #f3f4f6;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.route-list-item:hover {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.route-list-item:has(input:checked) {
+  border-color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.route-list-item input {
+  display: none;
+}
+
+.route-item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.route-item-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.route-item-dist {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.no-routes {
+  text-align: center;
+  padding: 2rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Pagination */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.page-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #7c3aed;
+}
+
+.page-btn-placeholder {
+  width: 32px;
+  height: 32px;
+}

@@ -20,7 +20,8 @@ export const SessionItem = ({
   showOrganizer = true,
   initialGuide = null,
   isEditing = false,
-  onToggleEdit = () => { }
+  onToggleEdit = () => { },
+  currentUserIsGuide = false
 }) => {
   const navigate = useNavigate();
   const [guide, setGuide] = useState(initialGuide);
@@ -98,27 +99,20 @@ export const SessionItem = ({
           </div>
         </div>
 
-        {onStatusChange && currentUserId === session.guide_id ? (
-          <select
-            className={`session-status-badge ${statusClasses[session.status]}`}
-            value={session.status}
-            onChange={(e) => onStatusChange(session.id, session.route_id, e.target.value)}
-          >
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        ) : (
-          <select
-            className={`session-status-badge ${statusClasses[session.status]}`}
-            value={session.status}
-            disabled
-          >
-            {Object.entries(statusLabels).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        )}
+        <select
+          className={`session-status-badge ${statusClasses[session.status]}`}
+          value={session.status}
+          disabled={!(onStatusChange && currentUserId === session.guide_id && currentUserIsGuide)}
+          onChange={(e) =>
+            onStatusChange?.(session.id, session.route_id, e.target.value)
+          }
+        >
+          {Object.entries(statusLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="session-footer-info">
@@ -131,7 +125,7 @@ export const SessionItem = ({
                 alt={guide.login}
                 className="session-guide-avatar"
               />
-              <span className="session-guide-name">{guide.login}</span>
+              <span className="session-guide-login" style={{ color: "#333" }}>@{guide.login}</span>
             </Link>
           </div>
         )}
@@ -144,9 +138,9 @@ export const SessionItem = ({
                 <img
                   key={idx}
                   src={p.users?.avatar || defaultAvatar}
-                  alt={p.users?.login || 'User'}
+                  alt={p.users?.full_name || p.users?.login || 'User'}
                   className="participant-avatar"
-                  title={p.users?.login || 'User'}
+                  title={p.users?.full_name || p.users?.login || 'User'}
                   onClick={() => p.users?.login && navigate(`/user/${p.users.login}`)}
                   style={{ cursor: p.users?.login ? 'pointer' : 'default' }}
                 />
@@ -160,7 +154,7 @@ export const SessionItem = ({
       </div>
 
       <div className="session-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        {currentUserId && String(currentUserId) === String(session.guide_id) && (
+        {currentUserId && String(currentUserId) === String(session.guide_id) && currentUserIsGuide && (
           <div className="management-actions" style={{ width: '100%' }}>
             {isEditing ? (
               <form className="edit-session-form" onSubmit={handleEditSubmit}>

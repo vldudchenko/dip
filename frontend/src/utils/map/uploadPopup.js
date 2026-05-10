@@ -1,7 +1,7 @@
 import { formatDuration } from './helpers';
 
 /**
- * Создаёт popup для загрузки видео (обычного и live)
+ * Создаёт popup для загрузки видео
  */
 export function createUploadPopupElement(
   map,
@@ -9,7 +9,6 @@ export function createUploadPopupElement(
   onUpload,
   onCancel,
   uploading,
-  onLiveRouteSelect,
   isLeaflet = false
 ) {
   const popupElement = document.createElement('div');
@@ -22,7 +21,7 @@ export function createUploadPopupElement(
     min-width: 300px;
     max-width: 400px;
     ${isLeaflet ? 'transform: translateY(-100%);' : 'transform: translate(-50%, -100%);'}
-    margin-top: ${isLeaflet ? '-10px' : '-10px'};
+    margin-top: -10px;
     pointer-events: auto;
   `;
 
@@ -35,66 +34,6 @@ export function createUploadPopupElement(
   titleElement.style.cssText = 'font-size: 1.1rem; font-weight: bold; margin-bottom: 0.5rem; color: #333;';
   titleElement.textContent = 'Загрузка видео';
   popupElement.appendChild(titleElement);
-
-  // Переключатель режимов
-  const modeToggleContainer = document.createElement('div');
-  modeToggleContainer.style.cssText = 'display: flex; gap: 0.5rem; margin-bottom: 1rem;';
-
-  const modeLabel = document.createElement('span');
-  modeLabel.style.cssText = 'font-size: 0.9rem; color: #666; align-self: center;';
-  modeLabel.textContent = 'Режим:';
-
-  const modeToggle = document.createElement('div');
-  modeToggle.style.cssText = 'display: flex; border: 1px solid #ddd; border-radius: 6px; overflow: hidden;';
-
-  const normalModeBtn = document.createElement('button');
-  normalModeBtn.textContent = 'Обычный';
-  normalModeBtn.style.cssText = `
-    padding: 0.375rem 0.75rem;
-    border: none;
-    background: #7c3aed;
-    color: white;
-    cursor: pointer;
-    font-size: 0.85rem;
-  `;
-  normalModeBtn.disabled = uploading;
-
-  const liveModeBtn = document.createElement('button');
-  liveModeBtn.textContent = 'Live маркер';
-  liveModeBtn.style.cssText = `
-    padding: 0.375rem 0.75rem;
-    border: none;
-    background: #f5f5f5;
-    color: #333;
-    cursor: pointer;
-    font-size: 0.85rem;
-  `;
-  liveModeBtn.disabled = uploading;
-
-  modeToggle.appendChild(normalModeBtn);
-  modeToggle.appendChild(liveModeBtn);
-  modeToggleContainer.appendChild(modeLabel);
-  modeToggleContainer.appendChild(modeToggle);
-  popupElement.appendChild(modeToggleContainer);
-
-  // Информация о точках
-  const pointsInfoElement = document.createElement('div');
-  pointsInfoElement.style.cssText = 'font-size: 0.75rem; color: #666; margin-bottom: 0.5rem;';
-  popupElement.appendChild(pointsInfoElement);
-
-  // Инструкция для live-режима
-  const liveInstructionElement = document.createElement('div');
-  liveInstructionElement.style.cssText = `
-    font-size: 0.75rem;
-    color: #7c3aed;
-    background: #f3e8ff;
-    padding: 0.4rem;
-    border-radius: 4px;
-    margin-bottom: 0.5rem;
-    display: none;
-  `;
-  liveInstructionElement.textContent = 'Выберите вторую точку маршрута на карте';
-  popupElement.appendChild(liveInstructionElement);
 
   // Выбор файла
   const fileInput = document.createElement('input');
@@ -142,7 +81,7 @@ export function createUploadPopupElement(
     transition: background 0.2s;
   `;
   uploadButton.textContent = uploading ? 'Загрузка...' : 'Загрузить видео';
-  uploadButton.disabled = uploading;
+  uploadButton.disabled = true;
 
   const cancelButton = document.createElement('button');
   cancelButton.style.cssText = `
@@ -164,56 +103,13 @@ export function createUploadPopupElement(
   buttonsElement.appendChild(cancelButton);
   popupElement.appendChild(buttonsElement);
 
-  // Состояние
-  let isLiveMode = false;
-  let routeSelected = false;
-  let routeStart = null;
-  let routeEnd = null;
-  let routeGeometry = null;
-
   function refreshUploadButtonState() {
     if (uploading) {
       uploadButton.disabled = true;
       return;
     }
-
-    const hasFile = Boolean(fileInput.files?.[0]);
-    const canUpload = isLiveMode ? hasFile && routeSelected : hasFile;
-    uploadButton.disabled = !canUpload;
+    uploadButton.disabled = !fileInput.files?.[0];
   }
-
-  function setMode(isLive) {
-    if (uploading || routeSelected) return;
-
-    isLiveMode = isLive;
-    normalModeBtn.style.background = isLive ? '#f5f5f5' : '#7c3aed';
-    normalModeBtn.style.color = isLive ? '#333' : 'white';
-    liveModeBtn.style.background = isLive ? '#7c3aed' : '#f5f5f5';
-    liveModeBtn.style.color = isLive ? 'white' : '#333';
-
-    liveInstructionElement.style.display = isLive ? 'block' : 'none';
-
-    if (isLive) {
-      onLiveRouteSelect?.(initialCoords, true);
-    } else {
-      onLiveRouteSelect?.(null, false);
-    }
-
-    refreshUploadButtonState();
-  }
-
-  // Обработчики кнопок режима
-  normalModeBtn.addEventListener('click', () => setMode(false));
-  liveModeBtn.addEventListener('click', () => setMode(true));
-
-  [normalModeBtn, liveModeBtn].forEach((btn) => {
-    btn.addEventListener('mouseenter', () => {
-      if (!btn.disabled) btn.style.opacity = '0.85';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.opacity = '1';
-    });
-  });
 
   // Выбор файла
   fileInput.addEventListener('change', async () => {
@@ -250,41 +146,12 @@ export function createUploadPopupElement(
     refreshUploadButtonState();
   });
 
-  // Обновление второй точки маршрута
-  popupElement.updateSecondPoint = (secondCoords, geometry) => {
-    routeSelected = true;
-    routeStart = { lat: initialCoords[1], lng: initialCoords[0] };
-    routeEnd = { lat: secondCoords[1], lng: secondCoords[0] };
-    routeGeometry = geometry;
-
-    liveInstructionElement.textContent = 'Маршрут выбран. Теперь загрузите видео.';
-    liveInstructionElement.style.background = '#dcfce7';
-    liveInstructionElement.style.color = '#166534';
-
-    normalModeBtn.disabled = true;
-    liveModeBtn.disabled = true;
-    normalModeBtn.style.cursor = 'not-allowed';
-    liveModeBtn.style.cursor = 'not-allowed';
-    normalModeBtn.style.opacity = '0.6';
-    liveModeBtn.style.opacity = '0.6';
-
-    refreshUploadButtonState();
-  };
-
   // Загрузка
   uploadButton.addEventListener('click', async (e) => {
     e.stopPropagation();
 
     const file = fileInput.files?.[0];
-    if (!file) {
-      alert('Выберите файл видео');
-      return;
-    }
-
-    if (isLiveMode && !routeSelected) {
-      alert('Сначала выберите маршрут (две точки) на карте');
-      return;
-    }
+    if (!file) return;
 
     uploading = true;
     uploadButton.disabled = true;
@@ -309,17 +176,12 @@ export function createUploadPopupElement(
 
       const uploadData = {
         file,
-        isLive: isLiveMode,
         coordinates: initialCoords,
-        routeStart: isLiveMode ? routeStart : null,
-        routeEnd: isLiveMode ? routeEnd : null,
-        routeGeometry: isLiveMode ? routeGeometry : null,
         videoDuration
       };
 
       const result = await onUpload(uploadData);
       if (result?.success) {
-        onLiveRouteSelect?.(null, false);
         onCancel();
         return;
       }
@@ -338,7 +200,6 @@ export function createUploadPopupElement(
   // Отмена
   cancelButton.addEventListener('click', (e) => {
     e.stopPropagation();
-    onLiveRouteSelect?.(null, false);
     onCancel();
   });
 
@@ -351,8 +212,6 @@ export function createUploadPopupElement(
       btn.style.opacity = '1';
     });
   });
-
-  refreshUploadButtonState();
 
   return { popupElement, fileInput, fileNameElement, uploadButton };
 }

@@ -327,3 +327,126 @@ input:checked+.slider:before {
 .sidebar-content::-webkit-scrollbar-thumb:hover {
   background: #d1d5db;
 }
+
+/* Route Selection List */
+.route-selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding-right: 4px;
+  min-height: 320px;
+}
+
+.route-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1.5px solid #f3f4f6;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.route-list-item:hover {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.route-list-item input {
+  accent-color: #7c3aed;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.route-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+}
+
+.route-item-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.route-item-dist {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.route-list-item:has(input:checked) {
+  border-color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.no-routes {
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Pagination */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.page-btn-placeholder {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #7c3aed;
+}
+
+/* Анимации для элементов карты */
+.leaflet-interactive,
+.leaflet-marker-icon,
+.ymaps3x0--marker,
+.ymaps3x0--feature,
+.VideoMarker {
+  transition: opacity 0.3s ease, stroke-width 0.3s ease, stroke 0.3s ease, transform 0.3s ease !important;
+}
+
+/* Фикс для плавности линий в Leaflet (SVG) */
+.leaflet-container path {
+  transition: opacity 0.3s ease, stroke-width 0.3s ease, stroke 0.3s ease;
+}

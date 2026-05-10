@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import ConfirmModal from './ConfirmModal';
+import defaultAvatar from '../static/Avatar.png';
 import '../styles/header.css';
 
-export function Header({ user, onLogin, onLogout }) {
+export function Header({ user, onLogin, onLogout, authLoading }) {
   const [showModal, setShowModal] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isAgreed, setIsAgreed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Сброс ошибки аватара при смене пользователя
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [user?.id]);
 
   const handleLogoutClick = () => {
     setShowModal(true);
@@ -29,6 +39,22 @@ export function Header({ user, onLogin, onLogout }) {
         navigate(`/user/${user.login}`);
       }
     }
+  };
+
+  const handleLoginAttempt = () => {
+    setIsLoginModalOpen(true);
+  };
+
+  const handleLoginConfirm = () => {
+    if (isAgreed) {
+      setIsLoginModalOpen(false);
+      onLogin();
+    }
+  };
+
+  const handleLoginCancel = () => {
+    setIsLoginModalOpen(false);
+    setIsAgreed(false);
   };
 
   const handleSearch = (e) => {
@@ -88,17 +114,21 @@ export function Header({ user, onLogin, onLogout }) {
         </div>
 
         <div className="header-user-info">
-          {user ? (
-            <>
-              <div className="user-profile" onClick={handleProfileClick}>
-                {user.avatar && (
-                  <img src={user.avatar} alt={user.login} className="user-avatar" />
-                )}
+          {authLoading || (localStorage.getItem('user_id') && localStorage.getItem('user_id') !== 'undefined' && !user) ? (
+            <div className="skeleton-box shimmer" style={{ width: '44px', height: '44px', borderRadius: '12px' }}></div>
+          ) : user ? (
+            <div className="header-logged-in-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div className="avatar-container avatar-container--header interactive" onClick={handleProfileClick}>
+                <img 
+                  src={avatarError || !user.avatar ? defaultAvatar : user.avatar} 
+                  alt={user.login} 
+                  onError={() => setAvatarError(true)}
+                />
               </div>
               <button className="logout-button" onClick={handleLogoutClick}>Выйти</button>
-            </>
+            </div>
           ) : (
-            <button onClick={onLogin} className="login-button-reset">
+            <button onClick={handleLoginAttempt} className="login-button-reset">
               <svg width="228" height="44" viewBox="0 0 228 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 22C0 12.6177 0 7.92655 2.47976 4.69486C3.11817 3.86288 3.86288 3.11817 4.69486 2.47976C7.92655 0 12.6177 0 22 0H206C215.382 0 220.073 0 223.305 2.47976C224.137 3.11817 224.882 3.86288 225.52 4.69486C228 7.92655 228 12.6177 228 22C228 31.3823 228 36.0735 225.52 39.3051C224.882 40.1371 224.137 40.8818 223.305 41.5202C220.073 44 215.382 44 206 44H22C12.6177 44 7.92655 44 4.69486 41.5202C3.86288 40.8818 3.11817 40.1371 2.47976 39.3051C0 36.0735 0 31.3823 0 22Z" fill="black"></path>
                 <rect x="28" y="10" width="24" height="24" rx="12" fill="#FC3F1D"></rect>
@@ -147,6 +177,58 @@ export function Header({ user, onLogin, onLogout }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={isLoginModalOpen}
+        title="Подтверждение авторизации"
+        confirmLabel="Продолжить"
+        confirmVariant="primary"
+        isConfirmDisabled={!isAgreed}
+        onConfirm={handleLoginConfirm}
+        onCancel={handleLoginCancel}
+        className="login-modal"
+        message={
+          <div className="login-modal-content">
+            <p>В рамках работы сервиса могут обрабатываться следующие данные:</p>
+            <p><strong>API Яндекс ID:</strong></p>
+            <ul className="data-list">
+              <li>
+                <span className="bullet"></span>
+                Доступ к портрету пользователя
+              </li>
+              <li>
+                <span className="bullet"></span>
+                Доступ к дате рождения
+              </li>
+              <li>
+                <span className="bullet"></span>
+                Доступ к адресу электронной почты
+              </li>
+              <li>
+                <span className="bullet"></span>
+                Доступ к логину, имени и фамилии, полу
+              </li>
+              <li>
+                <span className="bullet"></span>
+                Доступ к номеру телефона
+              </li>
+            </ul>
+            <p className="yandex-info">
+              Авторизация осуществляется через сервис Яндекс ID. Продолжая вход, вы даёте согласие на обработку и хранение данных в пределах, необходимых для функционирования веб-приложения.
+            </p>
+            <label className="agreement-checkbox">
+              <input
+                type="checkbox"
+                checked={isAgreed}
+                onChange={(e) => setIsAgreed(e.target.checked)}
+              />
+              <span>
+                Я принимаю условия <Link to="/terms" onClick={handleLoginCancel}>Пользовательского соглашения</Link> и <Link to="/privacy" onClick={handleLoginCancel}>Политики конфиденциальности</Link>
+              </span>
+            </label>
+          </div>
+        }
+      />
     </>
   );
 }

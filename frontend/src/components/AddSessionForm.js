@@ -21,10 +21,14 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
     try {
       const response = await fetch(`${API_URL}/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'user-id': currentUserId
+        },
         body: JSON.stringify({
           route_id: routeId,
           guide_id: currentUserId,
+          userId: currentUserId,
           start_date: newSession.start_date,
           end_date: newSession.end_date || newSession.start_date,
           start_time: newSession.start_time,

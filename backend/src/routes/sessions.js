@@ -1,5 +1,6 @@
 import express from 'express';
 import { sessionService } from '../services/session.js';
+import { requireGuide } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -54,9 +55,9 @@ router.get('/:id', async (req, res) => {
 /**
  * POST /api/sessions - Создание новой сессии
  */
-router.post('/', async (req, res) => {
+router.post('/', requireGuide, async (req, res) => {
   try {
-    const { start_date, start_time } = req.body;
+    const { start_date, start_time, userId } = req.body;
 
     // Проверка: сессию можно создать не ранее чем через 24 часа
     if (start_date && start_time) {
@@ -71,7 +72,12 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const session = await sessionService.createSession(req.body);
+    // Удаляем не-бд поля перед передачей в сервис
+    const data = { ...req.body };
+    const fieldsToStrip = ['userId', 'participants', 'route', 'guide', 'session_participants'];
+    fieldsToStrip.forEach(field => delete data[field]);
+
+    const session = await sessionService.createSession(data);
     res.json(session);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -81,10 +87,22 @@ router.post('/', async (req, res) => {
 /**
  * PATCH /api/sessions/:id - Обновление сессии
  */
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireGuide, async (req, res) => {
   try {
-    const session = await sessionService.updateSession(req.params.id, req.body);
-    res.json(session);
+    const { userId } = req.body;
+    const session = await sessionService.getSessionById(req.params.id);
+
+    if (session.guide_id !== userId) {
+      return res.status(403).json({ error: 'Вы не являетесь организатором этого прохождения' });
+    }
+
+    // Удаляем не-бд поля перед передачей в сервис
+    const data = { ...req.body };
+    const fieldsToStrip = ['userId', 'participants', 'route', 'guide', 'session_participants'];
+    fieldsToStrip.forEach(field => delete data[field]);
+
+    const updatedSession = await sessionService.updateSession(req.params.id, data);
+    res.json(updatedSession);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -93,8 +111,15 @@ router.patch('/:id', async (req, res) => {
 /**
  * DELETE /api/sessions/:id - Удаление сессии
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireGuide, async (req, res) => {
   try {
+    const { userId } = req.body;
+    const session = await sessionService.getSessionById(req.params.id);
+
+    if (session.guide_id !== userId) {
+      return res.status(403).json({ error: 'Вы не являетесь организатором этого прохождения' });
+    }
+
     await sessionService.deleteSession(req.params.id);
     res.json({ success: true });
   } catch (error) {

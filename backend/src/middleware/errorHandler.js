@@ -1,3 +1,5 @@
+import { userService } from '../services/user.js';
+
 /**
  * Middleware для обработки ошибок
  */
@@ -21,7 +23,7 @@ export const errorHandler = (err, req, res, next) => {
  * Middleware для проверки авторизации
  */
 export const requireAuth = (req, res, next) => {
-  const userId = req.body.userId;
+  const userId = req.headers['user-id'] || req.body.userId || req.query.userId;
 
   if (!userId) {
     return res.status(401).json({ error: 'Требуется авторизация' });
@@ -30,4 +32,25 @@ export const requireAuth = (req, res, next) => {
   next();
 };
 
-export default { errorHandler, requireAuth };
+/**
+ * Middleware для проверки статуса гида
+ */
+export const requireGuide = async (req, res, next) => {
+  const userId = req.headers['user-id'] || req.body.userId || req.query.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Требуется авторизация' });
+  }
+
+  try {
+    const user = await userService.getUserById(userId);
+    if (!user || !user.is_guide) {
+      return res.status(403).json({ error: 'У вас нет прав гида для выполнения этого действия' });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+  }
+};
+
+export default { errorHandler, requireAuth, requireGuide };

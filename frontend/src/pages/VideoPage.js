@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
-import { LiveMarkerMap } from '../components/LiveMarkerMap';
+import defaultAvatar from '../static/Avatar.png';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 // Компонент комментария с поддержкой вложенности
@@ -12,6 +12,7 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
   const isEditing = activeEditId === comment.id;
   const [editContent, setEditContent] = useState(comment.content);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const showReplyForm = activeReplyId === comment.id;
   const isOwner = user?.id === comment.user_id;
@@ -54,27 +55,29 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
     <div className="comment-item">
       <div className="comment-header">
         <Link to={`/user/${comment.users?.login}`} className="comment-header-user">
-          <img
-            src={comment.users?.avatar || 'https://via.placeholder.com/32'}
-            alt={comment.users?.login}
-            className="comment-avatar"
-          />
+          <div className="avatar-container avatar-container--small">
+            <img
+              src={avatarError || !comment.users?.avatar ? defaultAvatar : comment.users.avatar}
+              alt={comment.users?.login}
+              onError={() => setAvatarError(true)}
+            />
+          </div>
           <div className="comment-info">
-            <span className="comment-author">{comment.users?.login}</span>
+            <span className="comment-author">{comment.users?.full_name || comment.users?.login}</span>
             <span className="comment-date">{formatDate(comment.created_at)}</span>
           </div>
         </Link>
-        
+
         {comment.replies && comment.replies.length > 0 && (
-          <button 
+          <button
             onClick={() => setShowReplies(!showReplies)}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: '#7c3aed', 
-              fontSize: '0.85rem', 
-              fontWeight: '600', 
-              marginLeft: '8px', 
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7c3aed',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              marginLeft: '8px',
               cursor: 'pointer',
               padding: '2px 4px',
               borderRadius: '4px',
@@ -91,13 +94,13 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
           <>
             <span className="comment-reply-arrow">→</span>
             <Link to={`/user/${comment.replyToUser.login}`} className="comment-header-user">
-              <img
-                src={comment.replyToUser.avatar || 'https://via.placeholder.com/24'}
-                alt={comment.replyToUser.login}
-                className="comment-avatar"
-                style={{ width: '24px', height: '24px' }}
-              />
-              <span className="comment-author" style={{ fontSize: '0.85rem' }}>{comment.replyToUser.login}</span>
+              <div className="avatar-container avatar-container--mini">
+                <img
+                  src={comment.replyToUser.avatar || defaultAvatar}
+                  alt={comment.replyToUser.login}
+                />
+              </div>
+              <span className="comment-author" style={{ fontSize: '0.85rem' }}>{comment.replyToUser.full_name || comment.replyToUser.login}</span>
             </Link>
           </>
         )}
@@ -212,6 +215,7 @@ export function VideoPage() {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Статистика и лайки
   const [stats, setStats] = useState({ viewCount: 0, likeCount: 0, commentCount: 0 });
@@ -256,10 +260,6 @@ export function VideoPage() {
     }
   };
 
-  // Live маркер
-  const videoRef = useRef(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
 
   // Загрузка видео
   useEffect(() => {
@@ -335,7 +335,6 @@ export function VideoPage() {
   }, [id, video, user?.id]);
 
   const isOwner = user?.id && video?.user_id === user.id;
-  const isLiveMarker = video?.is_live && video.route_geometry;
 
   const handleDeleteClick = () => {
     setShowModal(true);
@@ -482,17 +481,6 @@ export function VideoPage() {
     handleAddComment(parentId, content);
   };
 
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setVideoDuration(videoRef.current.duration);
-    }
-  };
 
   if (loading) {
     return (
@@ -512,7 +500,6 @@ export function VideoPage() {
   }
 
   const author = video.users?.login;
-  const avatarUrl = video.users?.avatar || 'https://via.placeholder.com/50';
 
   return (
     <div className="route-page-container video-page-container">
@@ -526,27 +513,13 @@ export function VideoPage() {
         <div className="route-detail-content">
           <div className="route-detail-main">
             <div className="video-playback-section">
-              {isLiveMarker && (
-                <div className="live-marker-section live-marker-section--inline">
-                  <LiveMarkerMap
-                    routeGeometry={video.route_geometry}
-                    videoDuration={videoDuration || video.video_duration}
-                    currentTime={currentTime}
-                    video={video}
-                    inline
-                  />
-                </div>
-              )}
 
               <div className="video-player-container">
                 <video
-                  ref={videoRef}
                   src={video.file_url}
                   controls
                   autoPlay
                   className="video-player"
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
                 />
               </div>
             </div>
@@ -580,9 +553,7 @@ export function VideoPage() {
                 )
               ) : (
                 <p className="login-to-comment" style={{ textAlign: 'center', padding: '1rem', background: '#f9fafb', borderRadius: '8px' }}>
-                  <button className="btn btn--primary" onClick={() => window.location.href = `${process.env.REACT_APP_API_URL}/auth/yandex`}>
-                    Войдите, чтобы комментировать
-                  </button>
+                  Авторизуйтесь, чтобы комментировать
                 </p>
               )}
 
@@ -614,9 +585,16 @@ export function VideoPage() {
           <div className="route-detail-sidebar">
             <div className="guide-card">
               <Link to={`/user/${author}`} className="guide-card-link">
-                <img src={avatarUrl} alt={author} className="guide-card-avatar" />
+                <div className="avatar-container avatar-container--header">
+                  <img 
+                    src={avatarError || !video.users?.avatar ? defaultAvatar : video.users.avatar} 
+                    alt={author} 
+                    onError={() => setAvatarError(true)}
+                  />
+                </div>
                 <div className="guide-card-info">
-                  <span className="guide-card-name">{author}</span>
+                  <span className="guide-card-name">{video.users?.full_name || author}</span>
+                  <span className="guide-card-login">@{author}</span>
                 </div>
               </Link>
 
@@ -624,11 +602,6 @@ export function VideoPage() {
                 <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '0.5rem' }}>
                   Загружено: {new Date(video.created_at).toLocaleDateString()}
                 </div>
-                {isLiveMarker && (
-                  <span className="live-badge" style={{ display: 'inline-block', padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                    🎥 Live
-                  </span>
-                )}
               </div>
 
               <div className="video-stats" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>

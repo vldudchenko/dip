@@ -1,8 +1,5 @@
 import { saveMapState, loadMapState } from '../mapState';
 import customization from '../../customization.json';
-import { buildRoute } from './helpers';
-import { createUploadPopupElement } from './uploadPopup';
-import { LiveMarkerUploadController } from './liveMarkerUpload';
 
 /**
  * Инициализирует карту Яндекс с базовой функциональностью
@@ -41,7 +38,6 @@ export async function initMap({
   });
 
   let currentZoom = zoom;
-  let activeLiveController = null;
   let currentPopupElement = null;
 
   // Слои карты
@@ -59,27 +55,6 @@ export async function initMap({
   });
   map.addChild(locationListener);
 
-  // Слушатель для live-маршрута
-  const liveRouteClickListener = new YMapListener({
-    onClick: async (_, event) => {
-      if (!activeLiveController?.isActive || !event?.coordinates) return;
-
-      try {
-        const selected = await activeLiveController.complete(event.coordinates, buildRoute);
-        if (!selected) return;
-
-        if (currentPopupElement?.updateSecondPoint) {
-          currentPopupElement.updateSecondPoint(event.coordinates, selected.routeGeometry);
-        }
-      } catch (error) {
-        console.error('Error building walking route:', error);
-        alert('Не удалось построить пешеходный маршрут. Выберите другие точки.');
-        activeLiveController?.reset();
-        activeLiveController = null;
-      }
-    }
-  });
-  map.addChild(liveRouteClickListener);
 
   // Слушатель кликов для добавления видео
   const clickListener = new YMapListener({

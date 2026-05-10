@@ -8,9 +8,6 @@ import { getTransportOption, STOP_TYPE_MAP } from '../utils/routeConstants';
 import { getBoundsFromCoords, saveOsmMapState, loadOsmMapState, toLeafletLatLng, toLeafletPolyline, fromLeafletLatLng } from '../utils/map/leaflet/helpers';
 import { createVideoIcon, createRoutePointIcon } from '../utils/map/leaflet/markers';
 import { createStopTypePopupElement } from '../utils/map/stopTypePopup';
-import { createUploadPopupElement } from '../utils/map/uploadPopup';
-import { buildRoute } from '../utils/map/helpers';
-import { LiveMarkerUploadController } from '../utils/map/liveMarkerUpload';
 
 // Исправление дефолтных иконок Leaflet в CRA
 delete L.Icon.Default.prototype._getIconUrl;
@@ -46,6 +43,9 @@ export function LeafletMap({
   showPath = true,
   showVideos = true,
   routes = [],
+  hoveredRouteId,
+  onRouteHover,
+  onRouteClick,
   ...props
 }) {
   const navigate = useNavigate();
@@ -53,13 +53,14 @@ export function LeafletMap({
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
-  const userRef = useRef({ id: localStorage.getItem('user_id') });
+  const storedUserId = localStorage.getItem('user_id');
+  const safeUserId = storedUserId && storedUserId !== 'undefined' ? storedUserId : null;
+  const userRef = useRef({ id: safeUserId });
 
   const videoMarkersRef = useRef([]);
   const routeLayersRef = useRef({ polylines: [], markers: [] });
   const selectionMarkerRef = useRef(null);
   const selectedPointMarkerRef = useRef(null);
-  const activeLiveControllerRef = useRef(null);
   const popupMarkerRef = useRef(null);
   const highlightedVideoIdRef = useRef(null);
   const currentPopupElementRef = useRef(null);
@@ -126,6 +127,8 @@ export function LeafletMap({
     };
   }, []);
 
+  // Реакция на изменение hoveredRouteId теперь встроена в основные эффекты отрисовки
+
 // ─── Переход со страницы видео (state с координатами) ─────────────────
   useEffect(() => {
     if (!map) return;
@@ -155,17 +158,46 @@ export function LeafletMap({
     videoMarkersRef.current.forEach(m => m.remove());
     videoMarkersRef.current = [];
 
-    const features = videosToFeatures(videos);
-    features.forEach((feature) => {
+    // Создаем карту названий маршрутов для видео
+    const routeTitles = {};
+    (props.allRoutes || []).forEach(r => {
+      if (r.id) routeTitles[r.id] = r.title;
+    });
+
+    videos.forEach((video) => {
       try {
-        const video = feature.properties.video;
+        const lat = Number(video.latitude);
+        const lng = Number(video.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
         const isHighlighted = highlightedVideoId && video.id === highlightedVideoId;
+        const vRouteId = video.routeId || video.route_id;
+        const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
+        const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
         const icon = createVideoIcon(video, isHighlighted);
-        const [lng, lat] = feature.geometry.coordinates;
-        const marker = L.marker([lat, lng], { icon });
+        
+        const marker = L.marker([lat, lng], { 
+          icon, 
+          opacity,
+          zIndexOffset: 1000,
+          videoData: video // Сохраняем данные для обновления прозрачности
+        });
+        
+        // Добавляем подсказку с названием маршрута
+        if (vRouteId && routeTitles[vRouteId]) {
+          marker.bindTooltip(routeTitles[vRouteId], { sticky: true, className: 'route-tooltip' });
+        }
+
         marker.on('click', () => {
           navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
         });
+        marker.on('mouseover', () => {
+          if (vRouteId) onRouteHover?.(vRouteId);
+        });
+        marker.on('mouseout', () => {
+          if (vRouteId) onRouteHover?.(null);
+        });
+
         marker.addTo(map);
         videoMarkersRef.current.push(marker);
       } catch (e) {
@@ -177,7 +209,7 @@ export function LeafletMap({
       videoMarkersRef.current.forEach(m => m.remove());
       videoMarkersRef.current = [];
     };
-  }, [map, videos, highlightedVideoId, navigate, mode, showVideos]);
+  }, [map, videos, highlightedVideoId, navigate, mode, showVideos, onRouteHover, props.allRoutes]);
 
 // ─── Маркеры и линии маршрута ─────────────────────────────────────────
   useEffect(() => {
@@ -222,18 +254,32 @@ export function LeafletMap({
         const transportType = pointData.transport || 'walking';
         const transportColor = getTransportOption(transportType).color;
         const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
-
+        const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
+        
         const icon = createRoutePointIcon(pointData, isStart, transportColor, stopTypeLabel);
         const [lng, lat] = coords;
+        const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
         const marker = L.marker([lat, lng], {
           icon,
           draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+          opacity,
+          routeId: route.id // Сохраняем ID для обновления
         });
 
         if (mode === 'route-editor' && index !== 0) {
           marker.on('click', (e) => {
             e.originalEvent?.stopPropagation();
             onPointClickRef.current?.(index);
+          });
+        } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
+          marker.on('click', (e) => {
+            if (mode === 'point-selector') {
+              const { lat, lng } = e.latlng;
+              onMapClick?.([lng, lat]);
+              return;
+            }
+            L.DomEvent.stopPropagation(e);
+            if (route.id) onRouteClick?.(route.id);
           });
         }
 
@@ -244,15 +290,55 @@ export function LeafletMap({
           });
         }
 
+        if (route.title) {
+          marker.bindTooltip(route.title, { sticky: true, className: 'route-tooltip' });
+        }
+
+        marker.on('mouseover', () => {
+          onRouteHover?.(route.id);
+        });
+        marker.on('mouseout', () => {
+          onRouteHover?.(null);
+        });
+
         marker.addTo(map);
         routeLayersRef.current.markers.push(marker);
 
         if (index > 0) {
           const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
           const color = getTransportOption(transportType).color;
+          const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
+          const polylineOpacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
+          const polylineWeight = isCurrentHovered ? 6 : 4;
+          
           const polyline = L.polyline([toLeafletLatLng(prevCoords), toLeafletLatLng(coords)], {
-            color, weight: 4, opacity: 0.85,
+            color, 
+            weight: polylineWeight, 
+            opacity: polylineOpacity,
+            routeId: route.id // Сохраняем ID для обновления
           });
+
+          if (route.title) {
+            polyline.bindTooltip(route.title, { sticky: true, className: 'route-tooltip' });
+          }
+
+          polyline.on('mouseover', () => {
+            onRouteHover?.(route.id);
+          });
+          polyline.on('mouseout', () => {
+            onRouteHover?.(null);
+          });
+
+          polyline.on('click', (e) => {
+            if (mode === 'point-selector') {
+              const { lat, lng } = e.latlng;
+              onMapClick?.([lng, lat]);
+              return;
+            }
+            L.DomEvent.stopPropagation(e);
+            if (route.id) onRouteClick?.(route.id);
+          });
+
           polyline.addTo(map);
           routeLayersRef.current.polylines.push(polyline);
         }
@@ -324,7 +410,39 @@ export function LeafletMap({
         popupMarkerRef.current = null;
       }
     };
-  }, [map, routes, props.routePoints, mode, activePointIndex, showPath]);
+  }, [map, routes, props.routePoints, mode, activePointIndex, showPath, onRouteHover, onRouteClick]);
+
+  // Эффект для плавного обновления прозрачности при наведении
+  useEffect(() => {
+    if (!map) return;
+
+    // Обновляем видео-маркеры
+    videoMarkersRef.current.forEach(marker => {
+      const video = marker.options.videoData;
+      if (!video) return;
+      const vRouteId = video.routeId || video.route_id;
+      const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+      marker.setOpacity(opacity);
+    });
+
+    // Обновляем маркеры маршрута
+    routeLayersRef.current.markers.forEach(marker => {
+      const rId = marker.options.routeId;
+      const isCurrentHovered = hoveredRouteId && rId && String(rId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+      marker.setOpacity(opacity);
+    });
+
+    // Обновляем линии маршрута
+    routeLayersRef.current.polylines.forEach(polyline => {
+      const rId = polyline.options.routeId;
+      const isCurrentHovered = hoveredRouteId && rId && String(rId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
+      const weight = isCurrentHovered ? 6 : 4;
+      polyline.setStyle({ opacity, weight });
+    });
+  }, [hoveredRouteId, map]);
 
 // ─── Маркер выбранной точки (point-selector) ──────────────────────────
   useEffect(() => {
@@ -398,52 +516,3 @@ const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
   );
 };
 
-function createLeafletLiveController(map) {
-  let marker = null;
-  let line = null;
-
-  return {
-    activate: (startPoint) => {
-      const icon = L.divIcon({
-        className: '',
-        html: '<div style="width:12px;height:12px;background:#ef4444;border:2px solid white;border-radius:50%;box-shadow:0 0 10px rgba(239,68,68,0.5);transform:translate(-50%,-50%);"></div>',
-        iconSize: [0, 0]
-      });
-      marker = L.marker([startPoint[1], startPoint[0]], { icon }).addTo(map);
-
-      const onMouseMove = (e) => {
-        if (line) line.remove();
-        line = L.polyline([[startPoint[1], startPoint[0]], [e.latlng.lat, e.latlng.lng]], {
-          color: '#ef4444', weight: 3, dashArray: '5, 10', opacity: 0.6
-        }).addTo(map);
-      };
-
-      const onClick = (e) => {
-        const endCoords = [e.latlng.lng, e.latlng.lat];
-        const geometry = [[startPoint[0], startPoint[1]], [endCoords[0], endCoords[1]]];
-
-        // Находим текущий попап и обновляем его
-        const popups = document.querySelectorAll('.upload-popup');
-        popups.forEach(p => {
-          if (p.updateSecondPoint) p.updateSecondPoint(endCoords, geometry);
-        });
-
-        cleanup();
-      };
-
-      const cleanup = () => {
-        map.off('mousemove', onMouseMove);
-        map.off('click', onClick);
-        if (line) line.remove();
-        if (marker) marker.remove();
-      };
-
-      map.on('mousemove', onMouseMove);
-      setTimeout(() => map.on('click', onClick), 100);
-    },
-    reset: () => {
-      if (line) line.remove();
-      if (marker) marker.remove();
-    }
-  };
-}

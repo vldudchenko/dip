@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
-import { Map } from './components/Map';
 import { VideoPage } from './pages/VideoPage';
 import { HomePage } from './pages/HomePage';
 import { UserPage } from './pages/UserPage';
@@ -12,6 +11,9 @@ import { RoutePathPage } from './pages/RoutePathPage';
 import { SearchPage } from './pages/SearchPage';
 import { PostVideoPage } from './pages/PostVideoPage';
 import { InteractiveMapPage } from './pages/InteractiveMapPage';
+import { TermsPage } from './pages/TermsPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { FaqPage } from './pages/FaqPage';
 
 import { useAuth } from './hooks/useAuth';
 import { useVideos } from './hooks/useVideos';
@@ -74,6 +76,7 @@ function App() {
         user={user}
         onLogin={login}
         onLogout={logout}
+        authLoading={authLoading}
       />
 
       <main>
@@ -84,9 +87,7 @@ function App() {
 
           <Route path="/post-video" element={<PostVideoPage user={user} authLoading={authLoading} />} />
 
-          <Route path="/map" element={
-            <InteractiveMapPage user={user} />
-          } />
+          <Route path="/map" element={<InteractiveMapPage user={user} />} />
 
           <Route path="/user/:login" element={<UserPage />} />
 
@@ -97,6 +98,10 @@ function App() {
           <Route path="/route/:id/path" element={<RoutePathPage />} />
 
           <Route path="/video/:login/:id" element={<VideoPage />} />
+
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/faq" element={<FaqPage />} />
         </Routes>
       </main>
 

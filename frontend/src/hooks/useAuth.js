@@ -8,6 +8,10 @@ export function useAuth() {
   const navigate = useNavigate();
 
   const fetchUser = useCallback(async (userId) => {
+    if (!userId || userId === 'undefined') {
+      setLoading(false);
+      return null;
+    }
     try {
       const data = await api.fetchUser(userId);
       if (data) {
@@ -40,9 +44,13 @@ export function useAuth() {
     } else {
       // Если параметров нет, проверяем localStorage
       const storedUserId = localStorage.getItem('user_id');
-      if (storedUserId) {
+      if (storedUserId && storedUserId !== 'undefined') {
         fetchUser(storedUserId);
       } else {
+        if (storedUserId === 'undefined') {
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('yandex_token');
+        }
         setLoading(false);
       }
     }

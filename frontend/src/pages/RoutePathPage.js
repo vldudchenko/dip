@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { API_URL } from '../utils/constants';
 import { Map } from '../components/Map';
 import { useYandexMaps } from '../hooks/useYandexMaps';
@@ -9,9 +10,14 @@ import ConfirmModal from '../components/ConfirmModal';
 
 import '../styles/routePathPage.css';
 
+import { MapPageSkeleton } from '../components/Skeletons/MapPageSkeleton';
+
 export const RoutePathPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user: currentUser, loading: authLoading } = useAuth();
+  const storedUserId = localStorage.getItem('user_id');
+  const currentUserId = storedUserId && storedUserId !== 'undefined' ? storedUserId : null;
   const { provider } = useMapProvider();
   const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
 
@@ -79,6 +85,18 @@ export const RoutePathPage = () => {
     };
     fetchRoute();
   }, [id]);
+
+  // Проверка прав доступа
+  useEffect(() => {
+    if (!loading && !authLoading && route) {
+      const isOwner = currentUserId === route.guide_id;
+      const isGuide = currentUser?.is_guide;
+
+      if (!isOwner || !isGuide) {
+        navigate(`/route/${id}`);
+      }
+    }
+  }, [loading, authLoading, route, currentUser, currentUserId, id, navigate]);
 
   const handleUndo = () => {
     if (undoStack.length === 0) return;
@@ -265,7 +283,7 @@ export const RoutePathPage = () => {
 
 
 
-  if (loading) return <div className="route-path-page"><p>Загрузка...</p></div>;
+  if (loading) return <MapPageSkeleton isRoutePath={true} />;
   if (error) return <div className="route-path-page"><p>Ошибка: {error}</p></div>;
   if (!route) return <div className="route-path-page"><p>Маршрут не найден</p></div>;
 

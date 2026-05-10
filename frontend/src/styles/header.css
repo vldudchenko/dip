@@ -115,3 +115,149 @@
     max-width: 100%;
   }
 }
+
+/* ============================================
+   Login Modal
+   ============================================ */
+.login-modal {
+  max-width: 500px !important;
+  border-radius: 20px !important;
+  padding: 2.5rem !important;
+}
+
+.login-modal .modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #111827;
+}
+
+.login-modal-content {
+  text-align: left;
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+
+.login-modal-content p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.login-modal-content strong {
+  color: #111827;
+}
+
+.data-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid #f3f4f6;
+}
+
+.data-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.data-list li:last-child {
+  margin-bottom: 0;
+}
+
+.data-list .bullet {
+  width: 6px;
+  height: 6px;
+  background: #6366f1;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.note {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #9ca3af;
+  margin-top: -0.5rem;
+}
+
+.yandex-info {
+  background: #fff;
+  border-left: 4px solid #fc3f1d;
+  padding: 0.75rem 1rem;
+  margin: 1.5rem 0;
+  font-size: 0.875rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.agreement-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  cursor: pointer;
+  padding: 1rem;
+  background: #f5f3ff;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.agreement-checkbox:hover {
+  background: #ede9fe;
+}
+
+.agreement-checkbox input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  cursor: pointer;
+  accent-color: #6366f1;
+}
+
+.agreement-checkbox span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4338ca;
+}
+
+.agreement-checkbox a {
+  color: #6366f1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.modal-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.login-modal .modal-buttons {
+  margin-top: 2rem;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.login-modal .modal-button {
+  padding: 0.75rem 2rem;
+  font-weight: 600;
+  border-radius: 12px;
+  min-width: 140px;
+}
+
+.login-modal .modal-button--primary {
+  background: #111827;
+  color: white;
+}
+
+.login-modal .modal-button--primary:hover:not(:disabled) {
+  background: #374151;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

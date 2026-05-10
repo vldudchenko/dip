@@ -16,13 +16,15 @@ export const PostVideoPage = ({ user, authLoading }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [videos, setVideos] = useState([]);
+  const [sessionListPage, setSessionListPage] = useState(1);
+  const SESSIONS_PER_PAGE = 4;
 
   // Карта
   const mapRef = useRef(null);
 
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (!user) {
       navigate('/');
       return;
@@ -66,6 +68,13 @@ export const PostVideoPage = ({ user, authLoading }) => {
       setVideos([]);
     }
   }, [selectedSessionId, sessions]);
+
+  const paginatedSessions = React.useMemo(() => {
+    const start = (sessionListPage - 1) * SESSIONS_PER_PAGE;
+    return sessions.slice(start, start + SESSIONS_PER_PAGE);
+  }, [sessions, sessionListPage]);
+
+  const totalPages = Math.ceil(sessions.length / SESSIONS_PER_PAGE);
 
   const loadRouteVideos = async (routeId) => {
     try {
@@ -167,18 +176,56 @@ export const PostVideoPage = ({ user, authLoading }) => {
 
                 <div className="form-group">
                   <label>Прохождение</label>
-                  <select
-                    value={selectedSessionId}
-                    onChange={(e) => setSelectedSessionId(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>Выберите из списка...</option>
-                    {sessions.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.route_title} — {new Date(s.start_date).toLocaleDateString('ru-RU')}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="route-selection-list" style={{ minHeight: 'auto', maxHeight: '400px' }}>
+                    {paginatedSessions.length === 0 ? (
+                      <div className="no-routes">Нет прохождений</div>
+                    ) : (
+                      paginatedSessions.map(s => (
+                        <label key={s.id} className="route-list-item">
+                          <input
+                            type="radio"
+                            name="session"
+                            checked={selectedSessionId === s.id}
+                            onChange={() => setSelectedSessionId(s.id)}
+                          />
+                          <div className="route-item-info">
+                            <span className="route-item-title">{s.route_title}</span>
+                            <span className="route-item-dist">
+                              {new Date(s.start_date).toLocaleDateString('ru-RU')}
+                            </span>
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="pagination-controls">
+                      <div className="page-btn-placeholder">
+                        {sessionListPage > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setSessionListPage(p => p - 1)}
+                            className="page-btn"
+                          >
+                            &lt;
+                          </button>
+                        )}
+                      </div>
+                      <span>{sessionListPage} / {totalPages}</span>
+                      <div className="page-btn-placeholder">
+                        {sessionListPage < totalPages && (
+                          <button
+                            type="button"
+                            onClick={() => setSessionListPage(p => p + 1)}
+                            className="page-btn"
+                          >
+                            &gt;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -192,7 +239,7 @@ export const PostVideoPage = ({ user, authLoading }) => {
                       required
                     />
                     <label htmlFor="video-file" className="file-label">
-                      {videoFile ? videoFile.name : 'Выберите файл...'}
+                      {videoFile ? 'Видео выбрано' : 'Выберите файл...'}
                     </label>
                   </div>
                 </div>
@@ -206,7 +253,7 @@ export const PostVideoPage = ({ user, authLoading }) => {
 
                 {!point && selectedSessionId && (
                   <p className="hint-text animate-pulse">
-                    Подсказка: нажмите на карту слева, чтобы выбрать точку
+                    Нажмите на карту слева, чтобы выбрать точку
                   </p>
                 )}
               </form>

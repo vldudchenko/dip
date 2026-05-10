@@ -1,0 +1,157 @@
+/* ============================================
+   Legal Pages (Terms, Privacy)
+   ============================================ */
+.legal-container {
+  max-width: 900px;
+  padding: 3rem;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+}
+
+.legal-header {
+  text-align: center;
+  margin-bottom: 1rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.legal-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.legal-updated {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.legal-content {
+  color: #374151;
+  line-height: 1.7;
+}
+
+.legal-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #333;
+  margin-top: 2.5rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.legal-content h2::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 24px;
+  background: #6366f1;
+  border-radius: 2px;
+}
+
+.legal-content p {
+  margin-bottom: 1.25rem;
+}
+
+.legal-content ul {
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.legal-content li {
+  margin-bottom: 0.75rem;
+}
+
+.legal-content strong {
+  color: #111827;
+}
+
+.legal-footer {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid #f3f4f6;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .legal-container {
+    margin: 1rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+
+  .legal-title {
+    font-size: 1.75rem;
+  }
+}
+
+/* ============================================
+   FAQ Accordion
+   ============================================ */
+.faq-list {
+  margin-top: 2rem;
+}
+
+.faq-item {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+}
+
+.faq-question {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 1.5rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+  transition: all 0.2s ease;
+}
+
+.faq-question:hover {
+  color: #6366f1;
+}
+
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0, 1, 0, 1);
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.faq-answer.open {
+  max-height: 1000px;
+  padding-bottom: 1.5rem;
+  transition: all 0.3s cubic-bezier(1, 0, 1, 0);
+}
+
+.faq-icon {
+  width: 24px;
+  height: 24px;
+  color: #9ca3af;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.faq-item.open .faq-icon {
+  transform: rotate(180deg);
+  color: #6366f1;
+}
+
+.faq-item.open .faq-question {
+  color: #6366f1;
+}

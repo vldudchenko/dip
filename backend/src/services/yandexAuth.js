@@ -108,12 +108,18 @@ class YandexAuthService {
    * Сохраняет или обновляет пользователя в базе данных
    */
   async upsertUser(userData, tokenData, avatarUrl) {
+    const fullName = userData.real_name || 
+                     (userData.first_name && userData.last_name ? `${userData.first_name} ${userData.last_name}` : null) ||
+                     userData.display_name || 
+                     userData.login;
+
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .upsert({
         yandex_id: userData.id,
         email: userData.default_email,
         login: userData.display_name || userData.login,
+        full_name: fullName,
         avatar: avatarUrl,
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,

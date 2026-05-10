@@ -3,24 +3,26 @@ import React from 'react';
 /**
  * Универсальное модальное окно подтверждения
  */
-export const ConfirmModal = ({ 
-  isOpen, 
-  title, 
-  message, 
+export const ConfirmModal = ({
+  isOpen,
+  title,
+  message,
   confirmLabel = 'Подтвердить',
   cancelLabel = 'Отмена',
   confirmVariant = 'delete', // 'delete', 'save', 'primary'
   showCancel = true,
-  onConfirm, 
-  onCancel 
+  isConfirmDisabled = false,
+  className = '',
+  onConfirm,
+  onCancel
 }) => {
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-content ${className}`} onClick={(e) => e.stopPropagation()}>
         <h3 className="modal-title">{title}</h3>
-        <p className="modal-message">{message}</p>
+        <div className="modal-message">{message}</div>
         <div className="modal-buttons">
           {showCancel && (
             <button
@@ -33,6 +35,7 @@ export const ConfirmModal = ({
           <button
             className={`modal-button modal-button--${confirmVariant}`}
             onClick={onConfirm}
+            disabled={isConfirmDisabled}
           >
             {confirmLabel}
           </button>

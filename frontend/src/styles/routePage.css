@@ -98,7 +98,6 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1rem;
   gap: 1rem;
 }
 
@@ -213,6 +212,11 @@
   font-weight: 600;
   color: #333;
   font-size: 1rem;
+}
+
+.guide-card-login {
+  font-size: 0.95rem;
+  color: #666;
 }
 
 .guide-card-actions {

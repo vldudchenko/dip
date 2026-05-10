@@ -25,17 +25,27 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
-export function YandexMap({ 
-  user, 
-  videos = [], 
-  fetchVideos = () => {}, 
-  onUploadRef = { current: null }, 
+export function YandexMap({
+  user,
+  videos = [],
+  fetchVideos = () => { },
+  onUploadRef = { current: null },
   onFetchVideosRef = { current: null },
-  mode = 'videos', // 'videos' | 'route-editor' | 'route-viewer'
+  mode = 'videos',
   disableFetchOnMove = false,
   showPath = true,
   showVideos = true,
-  routes = []
+  routes = [],
+  onMapClick,
+  onPointDragEnd,
+  onPointClick,
+  onPointChange,
+  activePointIndex,
+  selectedPoint,
+  hoveredRouteId,
+  onRouteHover,
+  onRouteClick,
+  ...props
 }) {
   const [map, setMap] = useState(null);
   const [mapCenter, setMapCenter] = useState(() => {
@@ -51,7 +61,7 @@ export function YandexMap({
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [highlightedVideoId, setHighlightedVideoId] = useState(null);
   const [activePopupIndex, setActivePopupIndex] = useState(null);
-  
+
   useEffect(() => {
     setActivePopupIndex(activePointIndex);
   }, [activePointIndex]);
@@ -128,7 +138,7 @@ export function YandexMap({
     if (!map || !window.ymaps3 || mode === 'route-editor' || !showVideos) {
       // Очищаем старые маркеры
       markersRef.current.forEach((marker) => {
-        try { map.removeChild(marker); } catch (e) {}
+        try { map.removeChild(marker); } catch (e) { }
       });
       markersRef.current = [];
       return;
@@ -138,20 +148,47 @@ export function YandexMap({
     markersRef.current.forEach((marker) => {
       try {
         map.removeChild(marker);
-      } catch (e) {}
+      } catch (e) { }
     });
     markersRef.current = [];
 
     // Создаём новые маркеры
     const features = videosToFeatures(videos);
+    // Создаем карту названий маршрутов для видео
+    const routeTitles = {};
+    (props.allRoutes || []).forEach(r => {
+      if (r.id) routeTitles[r.id] = r.title;
+    });
+
     features.forEach((feature) => {
       try {
+        const video = feature.properties.video;
         const marker = renderMarker(
           feature,
           navigate,
           userRef.current,
-          highlightedVideoId
+          highlightedVideoId,
+          hoveredRouteId
         );
+        marker.videoData = video; // Сохраняем для оптимизации
+        
+        // Добавляем слушатели наведения на элемент маркера
+        const element = marker.element || marker._element; // В YMaps 3.0 элемент может быть в разных свойствах в зависимости от версии
+        if (element) {
+          const vRouteId = video.routeId || video.route_id;
+          element.onmouseenter = () => {
+            if (vRouteId) onRouteHover?.(vRouteId);
+          };
+          element.onmouseleave = () => {
+            if (vRouteId) onRouteHover?.(null);
+          };
+
+          // Подсказка (простейшая реализация через title)
+          if (vRouteId && routeTitles[vRouteId]) {
+            element.title = routeTitles[vRouteId];
+          }
+        }
+
         map.addChild(marker);
         markersRef.current.push(marker);
       } catch (e) {
@@ -162,11 +199,11 @@ export function YandexMap({
     // Очистка при размонтировании или изменении зависимостей
     return () => {
       markersRef.current.forEach((marker) => {
-        try { map.removeChild(marker); } catch (e) {}
+        try { map.removeChild(marker); } catch (e) { }
       });
       markersRef.current = [];
     };
-  }, [map, videos, highlightedVideoId, navigate, mode, showVideos]);
+  }, [map, videos, highlightedVideoId, navigate, mode, showVideos, props.allRoutes]);
 
   // Рендер точек и линии маршрута
   useEffect(() => {
@@ -174,8 +211,8 @@ export function YandexMap({
 
     if (!showPath) {
       const { polylines, markers } = routeFeaturesRef.current;
-      polylines.forEach(p => { try { map.removeChild(p); } catch (e) {} });
-      markers.forEach(m => { try { map.removeChild(m); } catch (e) {} });
+      polylines.forEach(p => { try { map.removeChild(p); } catch (e) { } });
+      markers.forEach(m => { try { map.removeChild(m); } catch (e) { } });
       routeFeaturesRef.current = { polylines: [], markers: [] };
       return;
     }
@@ -184,12 +221,12 @@ export function YandexMap({
     const { polylines, markers } = routeFeaturesRef.current;
 
     polylines.forEach(p => {
-      try { map.removeChild(p); } catch (e) {}
+      try { map.removeChild(p); } catch (e) { }
     });
     routeFeaturesRef.current.polylines = [];
-    
+
     markers.forEach(m => {
-      try { map.removeChild(m); } catch (e) {}
+      try { map.removeChild(m); } catch (e) { }
     });
     routeFeaturesRef.current.markers = [];
 
@@ -210,8 +247,16 @@ export function YandexMap({
         const transportColor = getTransportOption(transportType).color;
         const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
 
-        const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel);
-        
+        const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
+        const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+        const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel, opacity);
+
+        el.onmouseenter = () => onRouteHover?.(route.id);
+        el.onmouseleave = () => onRouteHover?.(null);
+        if (route.title) {
+          el.title = route.title;
+        }
+
         if (mode === 'route-editor') {
           el.onclick = (e) => {
             e.stopPropagation();
@@ -220,6 +265,15 @@ export function YandexMap({
             if (onPointClickRef.current) {
               onPointClickRef.current(index);
             }
+          };
+        } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
+          el.onclick = (e) => {
+            if (mode === 'point-selector') {
+              onMapClick?.(coords);
+              return;
+            }
+            e.stopPropagation();
+            if (route.id) onRouteClick?.(route.id);
           };
         }
 
@@ -235,6 +289,7 @@ export function YandexMap({
         };
 
         const marker = new YMapMarker(markerOptions, el);
+        marker.routeId = route.id; // Сохраняем для оптимизации
         map.addChild(marker);
         routeFeaturesRef.current.markers.push(marker);
 
@@ -242,6 +297,9 @@ export function YandexMap({
         if (index > 0) {
           const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
           const color = getTransportOption(transportType).color;
+          const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
+          const polylineOpacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
+          const polylineWeight = isCurrentHovered ? 6 : 4;
 
           const newPolyline = new YMapFeature({
             id: `route-${routeIdx}-segment-${index}`,
@@ -250,9 +308,27 @@ export function YandexMap({
               coordinates: [prevCoords, coords]
             },
             style: {
-              stroke: [{ color: color, width: 4 }]
+              stroke: [{ color: color, width: polylineWeight, opacity: polylineOpacity }]
             }
           });
+          newPolyline.routeId = route.id;
+
+          // В YMaps 3.0 события можно ловить через YMapListener, 
+          // но для простоты добавим свойства, которые проверим в листенере
+          newPolyline.onmouseenter = () => onRouteHover?.(route.id);
+          newPolyline.onmouseleave = () => onRouteHover?.(null);
+          
+          newPolyline.onclick = (event) => {
+            if (mode === 'point-selector') {
+              // Пытаемся достать координаты из события
+              const coords = event?.coordinates || event?.position;
+              if (coords) onMapClick?.(coords);
+              return;
+            }
+            if (event && event.stopPropagation) event.stopPropagation();
+            if (route.id) onRouteClick?.(route.id);
+          };
+
           map.addChild(newPolyline);
           routeFeaturesRef.current.polylines.push(newPolyline);
         }
@@ -273,7 +349,7 @@ export function YandexMap({
           if (lat > maxLat) maxLat = lat;
         });
       });
-      
+
       if (minLon !== Infinity) {
         const padding = 0.05;
         map.update({
@@ -309,7 +385,7 @@ export function YandexMap({
             if (onPointClickRef.current) onPointClickRef.current(null);
           }
         });
-        
+
         const popupMarker = new YMapMarker({ coordinates: coords }, popupEl);
         map.addChild(popupMarker);
         routeFeaturesRef.current.markers.push(popupMarker);
@@ -320,14 +396,65 @@ export function YandexMap({
 
       const { polylines: p, markers: m } = routeFeaturesRef.current;
       p.forEach(line => {
-        try { map.removeChild(line); } catch (e) {}
+        try { map.removeChild(line); } catch (e) { }
       });
       m.forEach(marker => {
-        try { map.removeChild(marker); } catch (e) {}
+        try { map.removeChild(marker); } catch (e) { }
       });
     };
-  }, [map, routes, props.routePoints, mode, activePopupIndex, showPath]);
-  
+  }, [map, routes, props.routePoints, mode, activePopupIndex, showPath, onRouteHover, onRouteClick]);
+
+  // Эффект для плавного обновления прозрачности при наведении
+  useEffect(() => {
+    if (!map || !window.ymaps3) return;
+
+    // Обновляем видео-маркеры
+    markersRef.current.forEach(marker => {
+      const video = marker.videoData;
+      if (!video) return;
+      const vRouteId = video.routeId || video.route_id;
+      const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+      
+      const element = marker.element || marker._element;
+      if (element) {
+        element.style.opacity = opacity.toString();
+      }
+    });
+
+    // Обновляем маркеры и линии маршрута
+    const { polylines, markers } = routeFeaturesRef.current;
+    
+    markers.forEach(marker => {
+      const rId = marker.routeId;
+      if (!rId) return;
+      const isCurrentHovered = hoveredRouteId && String(rId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+      
+      const element = marker.element || marker._element;
+      if (element) {
+        element.style.opacity = opacity.toString();
+      }
+    });
+
+    polylines.forEach(polyline => {
+      const rId = polyline.routeId;
+      if (!rId) return;
+      const isCurrentHovered = hoveredRouteId && String(rId) === String(hoveredRouteId);
+      const opacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
+      const weight = isCurrentHovered ? 6 : 4;
+      
+      // В YMaps 3.0 обновляем через свойство style
+      if (polyline.update) {
+        polyline.update({
+          style: {
+            stroke: [{ color: polyline.style?.stroke?.[0]?.color, width: weight, opacity: opacity }]
+          }
+        });
+      }
+    });
+  }, [hoveredRouteId, map]);
+
   // Рендер выбранной точки (point-selector)
   useEffect(() => {
     if (!map || !window.ymaps3 || mode !== 'point-selector') return;
@@ -335,7 +462,7 @@ export function YandexMap({
     const { YMapMarker } = window.ymaps3;
 
     if (selectedPointMarkerRef.current) {
-      try { map.removeChild(selectedPointMarkerRef.current); } catch (e) {}
+      try { map.removeChild(selectedPointMarkerRef.current); } catch (e) { }
       selectedPointMarkerRef.current = null;
     }
 
@@ -361,7 +488,7 @@ export function YandexMap({
 
     return () => {
       if (selectedPointMarkerRef.current) {
-        try { map.removeChild(selectedPointMarkerRef.current); } catch (e) {}
+        try { map.removeChild(selectedPointMarkerRef.current); } catch (e) { }
         selectedPointMarkerRef.current = null;
       }
     };
@@ -370,6 +497,8 @@ export function YandexMap({
 
   // Debounced координаты для загрузки видео
   const debouncedMapCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
+
+  // Реакция на изменение hoveredRouteId встроена в основные эффекты
 
   // Загрузка видео при изменении координат
   useEffect(() => {
@@ -405,7 +534,7 @@ export function YandexMap({
   }, [map, debouncedMapCenter, mode]);
 
   // Обновление видео после загрузки нового
-  const refreshVideosRef = useRef(() => {});
+  const refreshVideosRef = useRef(() => { });
   useEffect(() => {
     refreshVideosRef.current = () => {
       const lat = mapCenter[1];
@@ -451,6 +580,21 @@ export function YandexMap({
       onClick: () => {
         setActivePopupIndex(null);
         if (onPointClickRef.current) onPointClickRef.current(null);
+      },
+      onAction: (event) => {
+        if (event.type === 'click' && event.entity?.onclick) {
+          event.entity.onclick(event);
+        }
+      },
+      onPointerEnter: (event) => {
+        if (event?.entity?.onmouseenter) {
+          event.entity.onmouseenter();
+        }
+      },
+      onPointerLeave: (event) => {
+        if (event?.entity?.onmouseleave) {
+          event.entity.onmouseleave();
+        }
       }
     });
 
@@ -461,7 +605,7 @@ export function YandexMap({
       if (moveTimer) clearTimeout(moveTimer);
       try {
         map.removeChild(listener);
-      } catch (e) {}
+      } catch (e) { }
     };
   }, [map]);
 
@@ -501,14 +645,14 @@ export function YandexMap({
         markersRef.current.forEach((marker) => {
           try {
             map.removeChild(marker);
-          } catch (e) {}
+          } catch (e) { }
         });
         markersRef.current = [];
 
         if (selectionMarkerRef.current) {
           try {
             map.removeChild(selectionMarkerRef.current);
-          } catch (e) {}
+          } catch (e) { }
           selectionMarkerRef.current = null;
         }
       }

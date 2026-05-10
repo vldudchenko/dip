@@ -23,11 +23,11 @@ const TRANSPORT_COLORS = {
 /**
  * Создаёт маркер для видео с аватаркой пользователя
  */
-export function createVideoMarkerElement(video, onClick, isHighlighted = false) {
+export function createVideoMarkerElement(video, onClick, isHighlighted = false, opacity = 1) {
   const avatarUrl = video.users?.avatar;
   const login = video.users?.login;
 
-  const element = createAvatarElement(avatarUrl, login, isHighlighted);
+  const element = createAvatarElement(avatarUrl, login, isHighlighted, opacity);
   element.onclick = onClick;
   return element;
 }
@@ -42,20 +42,27 @@ export function createMarker({ coordinates, element }) {
 /**
  * Рендерит маркер для feature (используется при массовом отображении)
  */
-export function renderMarker(feature, navigate, currentUser, highlightedVideoId) {
+export function renderMarker(feature, navigate, currentUser, highlightedVideoId, hoveredRouteId) {
   const video = feature.properties.video;
-  const isHighlighted = highlightedVideoId && video.id === highlightedVideoId;
+  const isHighlighted = highlightedVideoId && String(video.id) === String(highlightedVideoId);
+  const vRouteId = video.routeId || video.route_id;
+  const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
+  const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
 
   const element = createVideoMarkerElement(
     video,
     () => {
       navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
     },
-    isHighlighted
+    isHighlighted,
+    opacity
   );
 
   return new window.ymaps3.YMapMarker(
-    { coordinates: feature.geometry.coordinates },
+    { 
+      coordinates: feature.geometry.coordinates,
+      zIndex: 1000 
+    },
     element
   );
 }
@@ -85,7 +92,7 @@ export function createVideoMarker(video, navigate, currentUser) {
  * @param {boolean} isStart - является ли точкой старта
  * @param {string} transportColor - цвет предыдущего перегона
  */
-export function createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel) {
+export function createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel, opacity = 1) {
   const el = document.createElement('div');
   el.className = 'route-point-marker';
   el.style.position = 'relative';
@@ -129,6 +136,8 @@ export function createRoutePointMarkerElement(pointData, isStart, transportColor
   }
 
   el.style.cursor = 'pointer';
+  el.style.opacity = opacity.toString();
+  el.style.transition = 'opacity 0.3s ease';
 
   return el;
 

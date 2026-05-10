@@ -1,6 +1,7 @@
 import { API_URL } from '../utils/constants';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import defaultAvatar from '../static/Avatar.png';
 import {
   STATUS_LABELS,
@@ -17,7 +18,9 @@ import { SessionItem } from '../components/SessionItem';
 export const UserPage = () => {
   const { login } = useParams();
   const navigate = useNavigate();
-  const currentUserId = localStorage.getItem('user_id');
+  const { user: currentUser } = useAuth();
+  const storedUserId = localStorage.getItem('user_id');
+  const currentUserId = storedUserId && storedUserId !== 'undefined' ? storedUserId : null;
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -165,16 +168,17 @@ export const UserPage = () => {
     <div className="user-page">
       {/* Шапка профиля */}
       <div className="user-header">
-        <img
-          src={avatarError || !user.avatar ? defaultAvatar : user.avatar}
-          alt="Аватар"
-          className="user-avatar"
-          onError={() => setAvatarError(true)}
-        />
+        <div className="avatar-container avatar-container--profile">
+          <img
+            src={avatarError || !user.avatar ? defaultAvatar : user.avatar}
+            alt="Аватар"
+            onError={() => setAvatarError(true)}
+          />
+        </div>
 
         <div className="user-header-info">
-          <h1>{user.login}</h1>
-          <p className="user-email">{user.email}</p>
+          <h1>{user.full_name || user.login}</h1>
+          <p className="user-login">@{user.login}</p>
         </div>
       </div>
 
@@ -218,6 +222,7 @@ export const UserPage = () => {
                       showRouteTitle={true}
                       showOrganizer={true}
                       initialGuide={session.guide}
+                      currentUserIsGuide={currentUser?.is_guide}
                     />
                   ))}
                 </div>

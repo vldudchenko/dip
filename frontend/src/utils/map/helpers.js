@@ -97,73 +97,6 @@ export function getBounds(geometry) {
   };
 }
 
-function haversineMeters(pointA, pointB) {
-  const [lng1, lat1] = pointA;
-  const [lng2, lat2] = pointB;
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function interpolatePoint(pointA, pointB, t) {
-  return [
-    pointA[0] + (pointB[0] - pointA[0]) * t,
-    pointA[1] + (pointB[1] - pointA[1]) * t
-  ];
-}
-
-export function getHeading(pointA, pointB) {
-  const dx = pointB[0] - pointA[0];
-  const dy = pointB[1] - pointA[1];
-  return (Math.atan2(dy, dx) * 180) / Math.PI;
-}
-
-export function getPositionAlongRoute(geometry, progress) {
-  if (!geometry?.length) return null;
-  if (geometry.length === 1) return { coords: geometry[0], angle: 0 };
-
-  let totalLength = 0;
-  const segments = [];
-
-  for (let i = 0; i < geometry.length - 1; i += 1) {
-    const length = haversineMeters(geometry[i], geometry[i + 1]);
-    segments.push({ index: i, length });
-    totalLength += length;
-  }
-
-  if (totalLength <= 0) {
-    return { coords: geometry[0], angle: getHeading(geometry[0], geometry[1]) };
-  }
-
-  const target = totalLength * Math.min(Math.max(progress, 0), 1);
-  let traversed = 0;
-
-  for (const segment of segments) {
-    const next = traversed + segment.length;
-    if (target <= next) {
-      const localT = segment.length > 0 ? (target - traversed) / segment.length : 0;
-      const pointA = geometry[segment.index];
-      const pointB = geometry[segment.index + 1];
-      return {
-        coords: interpolatePoint(pointA, pointB, localT),
-        angle: getHeading(pointA, pointB)
-      };
-    }
-    traversed = next;
-  }
-
-  const last = geometry[geometry.length - 1];
-  const prev = geometry[geometry.length - 2];
-  return { coords: last, angle: getHeading(prev, last) };
-}
 
 export function toLngLatRoute(routeGeometry) {
   if (!Array.isArray(routeGeometry)) return [];
@@ -174,7 +107,7 @@ export function toLngLatRoute(routeGeometry) {
 
 // ==================== Маркеры ====================
 
-export function createAvatarElement(avatarUrl, login, isHighlighted = false) {
+export function createAvatarElement(avatarUrl, login, isHighlighted = false, opacity = 1) {
   const element = document.createElement('div');
   element.className = 'VideoMarker';
   element.style.width = '50px';
@@ -187,6 +120,8 @@ export function createAvatarElement(avatarUrl, login, isHighlighted = false) {
   element.style.display = 'flex';
   element.style.alignItems = 'center';
   element.style.justifyContent = 'center';
+  element.style.opacity = opacity.toString();
+  element.style.transition = 'opacity 0.3s ease';
 
   element.innerHTML = `
     <img
