@@ -1,5 +1,4 @@
 import express from 'express';
-import { upload } from '../middleware/upload.js';
 import { mediaStorageService } from '../services/mediaStorage.js';
 import { requireAuth } from '../middleware/errorHandler.js';
 import { supabaseAnon } from '../db/supabase.js';
@@ -7,29 +6,51 @@ import { supabaseAnon } from '../db/supabase.js';
 const router = express.Router();
 
 /**
- * POST /api/images - Загрузка нового изображения к маршруту
+ * POST /api/images/upload-url - Генерация Signed URL для прямой загрузки изображения
  */
-router.post('/', upload.single('image'), requireAuth, async (req, res) => {
+router.post('/upload-url', requireAuth, async (req, res) => {
   try {
-    const { userId, routeId } = req.body;
+    const { fileName } = req.body;
+    if (!fileName) return res.status(400).json({ error: 'Имя файла обязательно' });
 
-    if (!req.file) {
-      return res.status(400).json({ error: 'Файл не загружен' });
-    }
+    const { data, error } = await mediaStorageService.generateSignedUploadUrl('Images', fileName);
+    
+    if (error) throw error;
+    res.json({ success: true, signedUrl: data.signedUrl, path: data.path });
+  } catch (error) {
+    console.error('Error generating image upload URL:', error);
+    res.status(500).json({ error: 'Не удалось сгенерировать ссылку для загрузки' });
+  }
+});
 
-    if (!routeId) {
-      return res.status(400).json({ error: 'ID маршрута обязателен' });
-    }
+/**
+ * POST /api/images - Регистрация загруженного изображения
+ */
+router.post('/', requireAuth, async (req, res) => {
+  try {
+    const { userId, routeId, filePath, originalName } = req.body;
 
-    const image = await mediaStorageService.uploadImage(
-      req.file,
-      userId,
-      routeId
-    );
+    if (!filePath) return res.status(400).json({ error: 'Файл не загружен' });
+    if (!routeId) return res.status(400).json({ error: 'ID маршрута обязателен' });
+
+    const publicUrl = mediaStorageService.getPublicUrl('Images', filePath);
+
+    const { data: image, error: imageError } = await supabaseAnon
+      .from('images')
+      .insert({
+        user_id: userId,
+        route_id: routeId,
+        file_url: publicUrl,
+        original_name: originalName
+      })
+      .select()
+      .single();
+
+    if (imageError) throw imageError;
 
     res.json({ success: true, image });
   } catch (error) {
-    console.error('Image upload error:', error);
+    console.error('Image registration error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,6 +1,21 @@
 import { API_URL, DEFAULT_RADIUS } from '../utils/constants';
 import { getFromCache, setCache, clearCache } from '../utils/cache';
 
+// Глобальный перехватчик fetch для работы с httpOnly-куками
+// JWT-токен передаётся автоматически браузером через куку — не трогаем localStorage
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  let [resource, config] = args;
+  
+  if (typeof resource === 'string' && resource.startsWith(API_URL)) {
+    config = config || {};
+    // Отправляем куки (JWT httpOnly-кука) при каждом запросе к нашему API
+    config.credentials = 'include';
+  }
+  
+  return originalFetch(resource, config);
+};
+
 // Глобальная конфигурация
 let APP_CONFIG = {
   DEFAULT_RADIUS: DEFAULT_RADIUS // значение по умолчанию из .env
@@ -88,27 +103,64 @@ export const api = {
   },
 
   async uploadVideo(videoFile, userId, latitude, longitude, isLive = false, routeData = null, videoDuration = 0, routeId = null) {
-    const formData = new FormData();
-    formData.append('video', videoFile);
-    formData.append('userId', userId);
-    formData.append('latitude', latitude);
-    formData.append('longitude', longitude);
-    formData.append('isLive', isLive);
-    if (routeId) {
-      formData.append('routeId', routeId);
-    }
-
-    if (isLive && routeData) {
-      formData.append('routeStart', JSON.stringify(routeData.routeStart));
-      formData.append('routeEnd', JSON.stringify(routeData.routeEnd));
-      formData.append('routeGeometry', JSON.stringify(routeData.routeGeometry));
-      formData.append('videoDuration', videoDuration);
-    }
-
     try {
+      // 1. Получаем Signed URL от нашего бэкенда
+      const ext = videoFile.name.split('.').pop();
+      const uniqueName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+      
+      const urlRes = await fetch(`${API_URL}/videos/upload-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fileName: uniqueName })
+      });
+      const urlData = await urlRes.json();
+      
+      if (!urlData.success || !urlData.signedUrl) {
+        throw new Error('Не удалось получить Signed URL');
+      }
+
+      // 2. Прямая загрузка файла в Supabase (Storage)
+      const uploadRes = await fetch(urlData.signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': videoFile.type || 'video/mp4'
+        },
+        body: videoFile
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Ошибка при загрузке файла в хранилище');
+      }
+
+      // Путь к файлу в бакете (используем path, который вернул Supabase)
+      const filePath = urlData.path;
+
+      // 3. Подтверждаем загрузку на бэкенде
+      const confirmData = {
+        userId,
+        latitude,
+        longitude,
+        isLive,
+        routeId,
+        filePath,
+        originalName: videoFile.name,
+      };
+
+      if (isLive && routeData) {
+        confirmData.routeStart = JSON.stringify(routeData.routeStart);
+        confirmData.routeEnd = JSON.stringify(routeData.routeEnd);
+        confirmData.routeGeometry = JSON.stringify(routeData.routeGeometry);
+        confirmData.videoDuration = videoDuration;
+      }
+
       const res = await fetch(`${API_URL}/videos`, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(confirmData)
       });
       const result = await res.json();
       
@@ -138,12 +190,11 @@ export const api = {
     }
   },
 
-  async deleteVideo(videoId, userId) {
+  async deleteVideo(videoId) {
     try {
       const res = await fetch(`${API_URL}/videos/${videoId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        headers: { 'Content-Type': 'application/json' }
       });
       const result = await res.json();
       
@@ -185,7 +236,7 @@ export const api = {
       const res = await fetch(`${API_URL}/videos/${videoId}/view`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ userId: userId || null })
       });
       return res.json();
     } catch (error) {
@@ -201,14 +252,12 @@ export const api = {
     try {
       const res = await fetch(`${API_URL}/videos/${videoId}/like`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        headers: { 'Content-Type': 'application/json' }
       });
       const result = await res.json();
       
-      // Обновляем кэш лайка
-      setCache(`like:${videoId}:${userId}`, { liked: result.liked });
-      // Инвалидируем кэш статистики
+      // Обновляем кэш лайка и инвалидируем статистику
+      if (userId) setCache(`like:${videoId}:${userId}`, { liked: result.liked });
       clearCache(`video-stats:${videoId}`);
       
       return result;
@@ -258,7 +307,7 @@ export const api = {
       const res = await fetch(`${API_URL}/videos/${videoId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content, parentId })
+        body: JSON.stringify({ content, parentId: parentId || null })
       });
       const result = await res.json();
       
@@ -274,17 +323,17 @@ export const api = {
     }
   },
 
-  async updateComment(commentId, userId, content) {
+  async updateComment(commentId, videoId, content) {
     try {
       const res = await fetch(`${API_URL}/comments/${commentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, content })
+        body: JSON.stringify({ content })
       });
       const result = await res.json();
       
-      // Инвалидируем кэш комментариев
-      clearCache(`comments:${commentId}`);
+      // Инвалидируем кэш комментариев по videoId (именно по нему хранится кэш)
+      if (videoId) clearCache(`comments:${videoId}`);
       
       return result;
     } catch (error) {
@@ -293,17 +342,16 @@ export const api = {
     }
   },
 
-  async deleteComment(commentId, userId) {
+  async deleteComment(commentId, videoId) {
     try {
       const res = await fetch(`${API_URL}/comments/${commentId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        headers: { 'Content-Type': 'application/json' }
       });
       const result = await res.json();
       
-      // Инвалидируем кэш комментариев
-      clearCache(`comments:${commentId}`);
+      // Инвалидируем кэш комментариев по videoId (именно по нему хранится кэш)
+      if (videoId) clearCache(`comments:${videoId}`);
       
       return result;
     } catch (error) {
@@ -331,13 +379,60 @@ export const api = {
   // ============================================
   // Поиск
   // ============================================
-  async searchRoutes(query) {
+  async fetchRoutes() {
     try {
-      const res = await fetch(`${API_URL}/routes/search/all?query=${encodeURIComponent(query)}`);
+      const res = await fetch(`${API_URL}/routes`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Fetch routes error:', error);
+      return [];
+    }
+  },
+
+  async searchRoutes(filters) {
+    try {
+      if (!filters) return this.fetchRoutes();
+      
+      let queryStr = '';
+      if (typeof filters === 'string') {
+        if (!filters) return this.fetchRoutes();
+        queryStr = `query=${encodeURIComponent(filters)}`;
+      } else {
+        const params = new URLSearchParams();
+        if (filters.searchQuery) params.set('query', filters.searchQuery);
+        if (filters.selectedGuide && filters.selectedGuide !== 'all') params.set('guideId', filters.selectedGuide);
+        
+        // Маппинг массивов в параметры, которые ожидает бэкенд
+        if (filters.useDistance && filters.distance && Array.isArray(filters.distance)) {
+          params.set('minDist', filters.distance[0]);
+          params.set('maxDist', filters.distance[1]);
+        }
+        
+        if (filters.useDuration && filters.duration && Array.isArray(filters.duration)) {
+          params.set('minDuration', filters.duration[0]);
+          params.set('maxDuration', filters.duration[1]);
+        }
+        
+        if (filters.onlyActive) params.set('onlyActive', 'true');
+        if (filters.onlyWithPaths) params.set('onlyWithPaths', 'true');
+        if (filters.sortBy) params.set('sortBy', filters.sortBy);
+        
+        if (filters.transports && Array.isArray(filters.transports) && filters.transports.length > 0) {
+          params.set('transports', filters.transports.join(','));
+        }
+        
+        queryStr = params.toString();
+      }
+      
+      const res = await fetch(`${API_URL}/routes/search/all?${queryStr}`);
+      if (!res.ok) throw new Error(`Search failed: ${res.statusText}`);
+      
       const data = await res.json();
       return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Search routes error:', error);
+      // При ошибке возвращаем пустой список, чтобы не ломать UI
       return [];
     }
   },
@@ -349,9 +444,21 @@ export const api = {
     try {
       const res = await fetch(`${API_URL}/sessions/user/${userId}`);
       const data = await res.json();
-      return Array.isArray(data) ? data : [];
+      // Распаковываем вложенную структуру { session: { ... } }
+      return Array.isArray(data) ? data.map(item => item.session).filter(Boolean) : [];
     } catch (error) {
       console.error('Fetch user sessions error:', error);
+      return [];
+    }
+  },
+
+  async fetchGuideSessions(guideId) {
+    try {
+      const res = await fetch(`${API_URL}/sessions/guide/${guideId}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Fetch guide sessions error:', error);
       return [];
     }
   }

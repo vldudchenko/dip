@@ -8,7 +8,7 @@ class VideoService {
    * Получает все видео с фильтрацией по радиусу
    */
   async getAllVideos(filters = {}) {
-    const { latitude, longitude, radius, routeId } = filters;
+    const { latitude, longitude, radius, routeId, status = 'ready' } = filters;
 
     let query = supabaseAnon
       .from('videos')
@@ -17,48 +17,66 @@ class VideoService {
         users (
           login,
           avatar
-        )
+        ),
+        views!left (count)
       `)
+      .eq('status', status)
       .order('created_at', { ascending: false });
 
     if (routeId) {
       query = query.eq('route_id', routeId);
     }
 
-    // Базовая фильтрация по координатам (приблизительная)
+    // Если переданы координаты, используем нашу новую RPC функцию
     if (latitude && longitude && radius) {
-      const searchRadius = parseFloat(radius) / 111;
-      query = query
-        .gte('latitude', parseFloat(latitude) - searchRadius)
-        .lte('latitude', parseFloat(latitude) + searchRadius)
-        .gte('longitude', parseFloat(longitude) - searchRadius)
-        .lte('longitude', parseFloat(longitude) + searchRadius);
+      const radiusDeg = parseFloat(radius) / 111; // Примерный перевод км в градусы
+      const { data, error } = await supabaseAnon.rpc('get_videos_in_radius', {
+        p_lat: parseFloat(latitude),
+        p_lng: parseFloat(longitude),
+        p_radius_deg: radiusDeg,
+        p_route_id: routeId || null
+      });
+
+      if (error) throw error;
+      
+      // Форматируем ответ под ожидаемую фронтендом структуру
+      return (data || []).map(v => ({
+        ...v,
+        users: { login: v.user_login, avatar: v.user_avatar },
+        views: [{ count: v.view_count }]
+      }));
     }
 
     const { data, error } = await query;
 
     if (error) throw error;
+    return data || [];
+  }
 
-    let result = data || [];
+  /**
+   * Получает кластеризованные видео для карты
+   */
+  async getClusters(filters = {}) {
+    const { bounds, zoom } = filters;
+    if (!bounds || zoom == null) return [];
 
-    // Точная фильтрация по радиусу (формула гаверсинуса)
-    if (latitude && longitude && radius) {
-      const radiusMeters = parseFloat(radius) * 1000;
-      result = result.filter(video => {
-        if (video.latitude == null || video.longitude == null) return false;
+    // bounds: { _southWest: { lat, lng }, _northEast: { lat, lng } }
+    const minLat = bounds._southWest.lat;
+    const minLng = bounds._southWest.lng;
+    const maxLat = bounds._northEast.lat;
+    const maxLng = bounds._northEast.lng;
 
-        const distance = this.calculateDistance(
-          parseFloat(latitude),
-          parseFloat(longitude),
-          parseFloat(video.latitude),
-          parseFloat(video.longitude)
-        );
-
-        return distance <= radiusMeters;
+    const { data, error } = await supabaseAnon
+      .rpc('get_video_clusters', {
+        min_lat: minLat,
+        min_lng: minLng,
+        max_lat: maxLat,
+        max_lng: maxLng,
+        zoom_level: zoom
       });
-    }
 
-    return result;
+    if (error) throw error;
+    return data || [];
   }
 
   /**

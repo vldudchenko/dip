@@ -18,8 +18,8 @@ class SessionService {
 
     const { data: sessions, error } = await supabaseAdmin
       .from('route_sessions')
-      .select('id, start_date, end_date, start_time, end_time, status')
-      .in('status', ['pending_date', 'in_progress']);
+      .select('id, start_date, end_date, start_time, end_time, status, participants_count, min_people, max_people, guide_id')
+      .not('status', 'in', '("completed","cancelled")');
 
     if (error) throw error;
 
@@ -29,20 +29,53 @@ class SessionService {
       const sessionStartDateTime = new Date(`${session.start_date}T${session.start_time}`);
       const sessionEndDateTime = new Date(`${session.end_date || session.start_date}T${session.end_time}`);
 
-      if (session.status === 'pending_date' && now >= sessionStartDateTime) {
+      let newStatus = session.status;
+
+      if (now < sessionStartDateTime) {
+        // До начала прохождения
+        if (session.max_people && session.participants_count >= session.max_people) {
+          newStatus = 'pending_date';
+        } else {
+          newStatus = 'waiting';
+        }
+      } else if (now >= sessionStartDateTime && now < sessionEndDateTime) {
+        // Во время прохождения
+        if (session.participants_count >= session.min_people) {
+          newStatus = 'in_progress';
+        } else {
+          newStatus = 'cancelled';
+        }
+      } else if (now >= sessionEndDateTime) {
+        // После окончания прохождения
+        if (session.status === 'in_progress' || session.participants_count >= session.min_people) {
+          newStatus = 'completed';
+        } else {
+          newStatus = 'cancelled';
+        }
+      }
+
+      if (newStatus !== session.status) {
         updates.push(
           supabaseAdmin
             .from('route_sessions')
-            .update({ status: 'in_progress' })
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
             .eq('id', session.id)
         );
       }
 
-      if (session.status === 'in_progress' && now >= sessionEndDateTime) {
+      // Дополнительно: проверяем и исправляем participants_count если нужно
+      // Это поможет исправить существующие неточности (например, если гид был в списке)
+      const { data: realParticipants } = await supabaseAdmin
+        .from('session_participants')
+        .select('user_id')
+        .eq('session_id', session.id);
+
+      const realCount = (realParticipants || []).filter(p => p.user_id !== session.guide_id).length;
+      if (realCount !== session.participants_count) {
         updates.push(
           supabaseAdmin
             .from('route_sessions')
-            .update({ status: 'completed' })
+            .update({ participants_count: realCount })
             .eq('id', session.id)
         );
       }
@@ -77,10 +110,19 @@ class SessionService {
 
     if (error) throw error;
 
-    return (data || []).map(s => ({
-      ...s,
-      participants: s.session_participants || []
-    }));
+    return (data || []).map(s => {
+      const participants = (s.session_participants || [])
+        .filter(p => p.user_id !== s.guide_id)
+        .map(p => ({
+          ...(p.users || {}),
+          user_id: p.user_id
+        }));
+      return {
+        ...s,
+        participants,
+        participants_count: participants.length
+      };
+    });
   }
 
   async getSessionById(id) {
@@ -105,9 +147,16 @@ class SessionService {
 
     if (error) throw error;
 
+    const participants = (data.session_participants || [])
+      .filter(p => p.user_id !== data.guide_id)
+      .map(p => ({
+        ...(p.users || {}),
+        user_id: p.user_id
+      }));
     return {
       ...data,
-      participants: data.session_participants || []
+      participants,
+      participants_count: participants.length
     };
   }
 
@@ -136,10 +185,19 @@ class SessionService {
 
     if (error) throw error;
 
-    return (data || []).map(s => ({
-      ...s,
-      participants: s.session_participants || []
-    }));
+    return (data || []).map(s => {
+      const participants = (s.session_participants || [])
+        .filter(p => p.user_id !== s.guide_id)
+        .map(p => ({
+          ...(p.users || {}),
+          user_id: p.user_id
+        }));
+      return {
+        ...s,
+        participants,
+        participants_count: participants.length
+      };
+    });
   }
 
   async createSession(sessionData) {
@@ -196,6 +254,13 @@ class SessionService {
   }
 
   async addParticipant(sessionId, userId) {
+    // Получаем информацию о сессии для проверки guide_id
+    const { data: sessionInfo } = await supabaseAdmin
+      .from('route_sessions')
+      .select('guide_id')
+      .eq('id', sessionId)
+      .single();
+
     const { data, error } = await supabaseAdmin
       .from('session_participants')
       .insert({
@@ -207,10 +272,40 @@ class SessionService {
 
     if (error) throw error;
 
+    // Обновляем счетчик участников только если это НЕ гид
+    if (sessionInfo && userId !== sessionInfo.guide_id) {
+      const { error: updateError } = await supabaseAdmin.rpc('increment_participants', {
+        session_id: sessionId
+      });
+
+      if (updateError) {
+        const { data: session } = await supabaseAdmin
+          .from('route_sessions')
+          .select('participants_count')
+          .eq('id', sessionId)
+          .single();
+
+        await supabaseAdmin
+          .from('route_sessions')
+          .update({ participants_count: (session?.participants_count || 0) + 1 })
+          .eq('id', sessionId);
+      }
+    }
+
+    // Сразу проверяем статусы
+    await this.updateSessionStatuses();
+
     return data;
   }
 
   async removeParticipant(sessionId, userId) {
+    // Получаем информацию о сессии для проверки guide_id
+    const { data: sessionInfo } = await supabaseAdmin
+      .from('route_sessions')
+      .select('guide_id')
+      .eq('id', sessionId)
+      .single();
+
     const { error } = await supabaseAdmin
       .from('session_participants')
       .delete()
@@ -218,6 +313,29 @@ class SessionService {
       .eq('user_id', userId);
 
     if (error) throw error;
+
+    // Обновляем счетчик только если это НЕ гид
+    if (sessionInfo && userId !== sessionInfo.guide_id) {
+      const { error: updateError } = await supabaseAdmin.rpc('decrement_participants', {
+        session_id: sessionId
+      });
+
+      if (updateError) {
+        const { data: session } = await supabaseAdmin
+          .from('route_sessions')
+          .select('participants_count')
+          .eq('id', sessionId)
+          .single();
+
+        await supabaseAdmin
+          .from('route_sessions')
+          .update({ participants_count: Math.max(0, (session?.participants_count || 0) - 1) })
+          .eq('id', sessionId);
+      }
+    }
+
+    // Сразу проверяем статусы
+    await this.updateSessionStatuses();
 
     return { success: true };
   }
@@ -262,6 +380,14 @@ class SessionService {
             id,
             login,
             avatar
+          ),
+          session_participants (
+            user_id,
+            users (
+              id,
+              login,
+              avatar
+            )
           )
         )
       `)
@@ -270,7 +396,23 @@ class SessionService {
 
     if (error) throw error;
 
-    return data;
+    return (data || []).map(item => {
+      const s = item.session;
+      const participants = (s.session_participants || [])
+        .filter(p => p.user_id !== s.guide_id)
+        .map(p => ({
+          ...(p.users || {}),
+          user_id: p.user_id
+        }));
+      return {
+        ...item,
+        session: {
+          ...s,
+          participants,
+          participants_count: participants.length
+        }
+      };
+    });
   }
 }
 

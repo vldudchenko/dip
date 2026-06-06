@@ -24,6 +24,8 @@ const RouteSessionsSection = memo(({
 }) => {
   const [showAddSession, setShowAddSession] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [sessionToJoin, setSessionToJoin] = useState(null);
+  const [sessionToLeave, setSessionToLeave] = useState(null);
   const [sessionPage, setSessionPage] = useState(1);
   const [activeSessionEditId, setActiveSessionEditId] = useState(null);
   const SESSIONS_PER_PAGE = 4;
@@ -36,6 +38,20 @@ const RouteSessionsSection = memo(({
     if (sessionToDelete) {
       await onDelete(sessionToDelete);
       setSessionToDelete(null);
+    }
+  };
+
+  const handleJoinConfirm = async () => {
+    if (sessionToJoin) {
+      await onJoin(sessionToJoin);
+      setSessionToJoin(null);
+    }
+  };
+
+  const handleLeaveConfirm = async () => {
+    if (sessionToLeave) {
+      await onLeave(sessionToLeave);
+      setSessionToLeave(null);
     }
   };
 
@@ -94,8 +110,8 @@ const RouteSessionsSection = memo(({
               session={session}
               currentUserId={currentUserId}
               isRouteOwner={isRouteOwner}
-              onJoin={onJoin}
-              onLeave={onLeave}
+              onJoin={setSessionToJoin}
+              onLeave={setSessionToLeave}
               onEdit={onEdit}
               onDelete={setSessionToDelete}
               onStatusChange={onStatusChange}
@@ -154,6 +170,26 @@ const RouteSessionsSection = memo(({
         confirmLabel="Удалить"
         onConfirm={handleDeleteConfirm}
         onCancel={() => setSessionToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!sessionToJoin}
+        title="Запись на прохождение"
+        message="Вы уверены, что хотите записаться на это прохождение?"
+        confirmLabel="Записаться"
+        confirmVariant="primary"
+        onConfirm={handleJoinConfirm}
+        onCancel={() => setSessionToJoin(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!sessionToLeave}
+        title="Отмена записи"
+        message="Вы уверены, что хотите отменить свою запись на это прохождение?"
+        confirmLabel="Отписаться"
+        confirmVariant="delete"
+        onConfirm={handleLeaveConfirm}
+        onCancel={() => setSessionToLeave(null)}
       />
     </>
   );

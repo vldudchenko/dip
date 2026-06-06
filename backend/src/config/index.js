@@ -24,6 +24,9 @@ export const config = {
   // App config
   defaultRadius: parseFloat(process.env.DEFAULT_RADIUS),
   maxVideoSizeMb: parseInt(process.env.MAX_VIDEO_SIZE_MB),
+  
+  // JWT
+  jwtSecret: process.env.JWT_SECRET || 'fallback_secret_key_for_dev',
 };
 
 export default config;

@@ -25,6 +25,55 @@ function useDebounce(value, delay) {
   return debouncedValue;
 }
 
+const parseCoords = (coords) => {
+  if (!coords) return null;
+  
+  let target = coords;
+  if (!Array.isArray(coords) && typeof coords === 'object') {
+    if (coords.coords !== undefined) target = coords.coords;
+    else if (coords.coordinates !== undefined) target = coords.coordinates;
+  }
+  
+  if (!target) return null;
+  
+  const arr = Array.isArray(target) ? target : [target.lng || target.longitude, target.lat || target.latitude];
+  if (!arr || arr.length < 2) return null;
+  
+  const lng = parseFloat(arr[0]);
+  const lat = parseFloat(arr[1]);
+  
+  if (isNaN(lng) || isNaN(lat)) return null;
+  return [lng, lat];
+}
+
+function createYandexClusterElement(item, onClick) {
+  const size = item.count < 10 ? 30 : item.count < 100 ? 40 : 50;
+  const color = item.count < 10 ? '#7c3aed' : item.count < 100 ? 'rgba(240, 194, 12, 0.9)' : 'rgba(241, 128, 23, 0.9)';
+
+  const el = document.createElement('div');
+  el.className = 'custom-cluster-icon';
+  el.style.backgroundColor = color;
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.borderRadius = '50%';
+  el.style.display = 'flex';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'center';
+  el.style.color = '#fff';
+  el.style.fontWeight = 'bold';
+  el.style.border = '2px solid rgba(255,255,255,0.7)';
+  el.style.cursor = 'pointer';
+  el.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.3)';
+  el.style.transform = 'translate(-50%, -50%)';
+
+  const text = document.createElement('span');
+  text.textContent = item.count;
+  el.appendChild(text);
+
+  el.onclick = onClick;
+  return el;
+}
+
 export function YandexMap({
   user,
   videos = [],
@@ -45,6 +94,11 @@ export function YandexMap({
   hoveredRouteId,
   onRouteHover,
   onRouteClick,
+  resetKey,
+  routeId,
+  ymapsReady,
+  showMilestones = true,
+  videoFilterMode = 'all',
   ...props
 }) {
   const [map, setMap] = useState(null);
@@ -61,6 +115,10 @@ export function YandexMap({
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [highlightedVideoId, setHighlightedVideoId] = useState(null);
   const [activePopupIndex, setActivePopupIndex] = useState(null);
+  const [tooltipState, setTooltipState] = useState({ show: false, text: '', x: 0, y: 0 });
+  const [mapBounds, setMapBounds] = useState(null);
+  const debouncedBounds = useDebounce(mapBounds, 500);
+  const [clusters, setClusters] = useState([]);
 
   useEffect(() => {
     setActivePopupIndex(activePointIndex);
@@ -71,6 +129,8 @@ export function YandexMap({
   const location = useLocation();
 
   const mapContainerRef = useRef(null);
+  const lastCenteredRouteIdRef = useRef(null);
+  const lastResetKeyRef = useRef(resetKey);
   const selectionMarkerRef = useRef(null);
   const markersRef = useRef([]);
   const fetchVideosRef = useRef(fetchVideos);
@@ -78,6 +138,8 @@ export function YandexMap({
   const highlightedVideoIdRef = useRef(null);
   const lastFetchCoordsRef = useRef({ lat: null, lng: null });
   const mapInitializedRef = useRef(false);
+  const isInitializingRef = useRef(false);
+  const refreshVideosRef = useRef(null);
   const onMapClickRef = useRef(onMapClick);
   const onPointDragEndRef = useRef(onPointDragEnd);
   const onPointClickRef = useRef(onPointClick);
@@ -132,6 +194,29 @@ export function YandexMap({
     return () => window.removeEventListener('resize', updateMapSize);
   }, []);
 
+  // ─── Debounced Bounds для кластеризации ───────────────────────────────
+  useEffect(() => {
+    if (!map || mode !== 'videos' || !showVideos || !debouncedBounds) return;
+
+    let isMounted = true;
+    const fetchClusters = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/videos/clusters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bounds: debouncedBounds.bounds, zoom: debouncedBounds.zoom + 1 })
+        });
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        if (isMounted) setClusters(data);
+      } catch (e) {
+        console.error('Failed to fetch clusters', e);
+      }
+    };
+    fetchClusters();
+    return () => { isMounted = false; };
+  }, [debouncedBounds, mode, showVideos, map]);
+
 
   // Рендер маркеров - срабатывает при изменении videos или highlightedVideoId
   useEffect(() => {
@@ -152,45 +237,86 @@ export function YandexMap({
     });
     markersRef.current = [];
 
-    // Создаём новые маркеры
-    const features = videosToFeatures(videos);
     // Создаем карту названий маршрутов для видео
     const routeTitles = {};
-    (props.allRoutes || []).forEach(r => {
+    const sourceRoutes = props.allRoutes || routes || [];
+    sourceRoutes.forEach(r => {
       if (r.id) routeTitles[r.id] = r.title;
     });
 
-    features.forEach((feature) => {
+    const currentData = (mode === 'videos' && videoFilterMode === 'all' && clusters.length > 0 && mapZoom < 17)
+      ? clusters
+      : videos;
+
+    currentData.forEach((item) => {
       try {
-        const video = feature.properties.video;
-        const marker = renderMarker(
-          feature,
-          navigate,
-          userRef.current,
-          highlightedVideoId,
-          hoveredRouteId
-        );
-        marker.videoData = video; // Сохраняем для оптимизации
-        
-        // Добавляем слушатели наведения на элемент маркера
-        const element = marker.element || marker._element; // В YMaps 3.0 элемент может быть в разных свойствах в зависимости от версии
-        if (element) {
-          const vRouteId = video.routeId || video.route_id;
-          element.onmouseenter = () => {
-            if (vRouteId) onRouteHover?.(vRouteId);
-          };
-          element.onmouseleave = () => {
-            if (vRouteId) onRouteHover?.(null);
+        const lat = Number(item.lat || item.latitude);
+        const lng = Number(item.lng || item.longitude);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        if (item.is_cluster) {
+          const element = createYandexClusterElement(item, () => {
+            const currentZoom = map.zoom || map.location?.zoom || mapZoom || 15;
+            map.setLocation({
+              center: [lng, lat],
+              zoom: currentZoom + 2,
+              duration: 300
+            });
+          });
+          const marker = new window.ymaps3.YMapMarker(
+            { 
+              coordinates: [lng, lat],
+              zIndex: 1000 
+            },
+            element
+          );
+          map.addChild(marker);
+          markersRef.current.push(marker);
+        } else {
+          const videoData = {
+            id: item.video_id || item.id,
+            latitude: lat,
+            longitude: lng,
+            routeId: item.routeId || item.route_id,
+            poster_url: item.poster_url,
+            users: {
+              login: item.user_login || item.users?.login,
+              avatar: item.user_avatar || item.users?.avatar
+            }
           };
 
-          // Подсказка (простейшая реализация через title)
-          if (vRouteId && routeTitles[vRouteId]) {
-            element.title = routeTitles[vRouteId];
+          const feature = {
+            geometry: { coordinates: [lng, lat] },
+            properties: { video: videoData }
+          };
+
+          const marker = renderMarker(
+            feature,
+            navigate,
+            userRef.current,
+            highlightedVideoId,
+            hoveredRouteId
+          );
+          marker.videoData = videoData;
+
+          const element = marker.element || marker._element;
+          if (element) {
+            const vRouteId = videoData.routeId;
+            element.onmouseenter = () => {
+              if (vRouteId) onRouteHover?.(vRouteId);
+            };
+            element.onmouseleave = () => {
+              if (vRouteId) onRouteHover?.(null);
+            };
+
+            if (vRouteId && routeTitles[vRouteId]) {
+              element.title = routeTitles[vRouteId];
+            }
           }
-        }
 
-        map.addChild(marker);
-        markersRef.current.push(marker);
+          map.addChild(marker);
+          markersRef.current.push(marker);
+        }
       } catch (e) {
         console.error('[Map] Error adding marker:', e);
       }
@@ -203,11 +329,11 @@ export function YandexMap({
       });
       markersRef.current = [];
     };
-  }, [map, videos, highlightedVideoId, navigate, mode, showVideos, props.allRoutes]);
+  }, [map, videos, highlightedVideoId, navigate, mode, showVideos, props.allRoutes, clusters, videoFilterMode, mapZoom]);
 
   // Рендер точек и линии маршрута
   useEffect(() => {
-    if (!map || !window.ymaps3 || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'videos')) return;
+    if (!map || !window.ymaps3 || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'point-selector' && mode !== 'videos')) return;
 
     if (!showPath) {
       const { polylines, markers } = routeFeaturesRef.current;
@@ -240,7 +366,8 @@ export function YandexMap({
       if (!points || points.length === 0) return;
 
       points.forEach((pointData, index) => {
-        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+        const coords = parseCoords(pointData);
+        if (!coords) return;
         const isStart = pointData.type === 'start' || index === 0;
 
         const transportType = pointData.transport || 'walking';
@@ -249,75 +376,84 @@ export function YandexMap({
 
         const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
         const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
-        const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel, opacity);
+        const stopType = pointData.stop_type;
+        const isMilestone = isStart || (stopType && stopType !== 'none');
 
-        el.onmouseenter = () => onRouteHover?.(route.id);
-        el.onmouseleave = () => onRouteHover?.(null);
-        if (route.title) {
-          el.title = route.title;
-        }
+        if (isMilestone && showMilestones) {
+          const el = createRoutePointMarkerElement(pointData, isStart, transportColor, stopTypeLabel, opacity);
 
-        if (mode === 'route-editor') {
-          el.onclick = (e) => {
-            e.stopPropagation();
-            if (index === 0) return; // Не открываем попап для старта
-            setActivePopupIndex(index);
-            if (onPointClickRef.current) {
-              onPointClickRef.current(index);
-            }
-          };
-        } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
-          el.onclick = (e) => {
-            if (mode === 'point-selector') {
-              onMapClick?.(coords);
-              return;
-            }
-            e.stopPropagation();
-            if (route.id) onRouteClick?.(route.id);
-          };
-        }
-
-
-        const markerOptions = {
-          coordinates: coords,
-          draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
-          onDragEnd: (coordinates) => {
-            if (onPointDragEndRef.current) {
-              onPointDragEndRef.current(index, coordinates);
-            }
+          el.onmouseenter = () => onRouteHover?.(route.id);
+          el.onmouseleave = () => onRouteHover?.(null);
+          if (route.title) {
+            el.title = route.title;
           }
-        };
 
-        const marker = new YMapMarker(markerOptions, el);
-        marker.routeId = route.id; // Сохраняем для оптимизации
-        map.addChild(marker);
-        routeFeaturesRef.current.markers.push(marker);
+          if (mode === 'route-editor') {
+            el.onclick = (e) => {
+              e.stopPropagation();
+              if (index === 0) return; // Не открываем попап для старта
+              setActivePopupIndex(index);
+              if (onPointClickRef.current) {
+                onPointClickRef.current(index);
+              }
+            };
+          } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
+            el.onclick = (e) => {
+              if (mode === 'point-selector') {
+                onMapClick?.(coords);
+                return;
+              }
+              e.stopPropagation();
+              if (route.id) onRouteClick?.(route.id);
+            };
+          }
+
+
+          const markerOptions = {
+            coordinates: coords,
+            draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+            onDragEnd: (coordinates) => {
+              if (onPointDragEndRef.current) {
+                onPointDragEndRef.current(index, coordinates);
+              }
+            }
+          };
+
+          const marker = new YMapMarker(markerOptions, el);
+          marker.routeId = route.id; // Сохраняем для оптимизации
+          map.addChild(marker);
+          routeFeaturesRef.current.markers.push(marker);
+        }
 
         // Рисуем линию от предыдущей точки к текущей
         if (index > 0) {
-          const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
+          const prevCoords = parseCoords(points[index - 1]);
+          if (!prevCoords) return;
           const color = getTransportOption(transportType).color;
           const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
           const polylineOpacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
           const polylineWeight = isCurrentHovered ? 6 : 4;
 
           const newPolyline = new YMapFeature({
-            id: `route-${routeIdx}-segment-${index}`,
+            id: `route-${route.id || routeIdx}-segment-${index}`,
             geometry: {
               type: 'LineString',
               coordinates: [prevCoords, coords]
             },
             style: {
               stroke: [{ color: color, width: polylineWeight, opacity: polylineOpacity }]
-            }
+            },
+            cursor: 'pointer'
           });
           newPolyline.routeId = route.id;
+          newPolyline.originalColor = color;
+          newPolyline.routeTitle = route.title;
 
           // В YMaps 3.0 события можно ловить через YMapListener, 
           // но для простоты добавим свойства, которые проверим в листенере
           newPolyline.onmouseenter = () => onRouteHover?.(route.id);
           newPolyline.onmouseleave = () => onRouteHover?.(null);
-          
+
           newPolyline.onclick = (event) => {
             if (mode === 'point-selector') {
               // Пытаемся достать координаты из события
@@ -335,65 +471,38 @@ export function YandexMap({
       });
     });
 
-    if ((mode === 'route-viewer' || mode === 'point-selector') && routesToRender.length > 0) {
-      let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-      routesToRender.forEach(r => {
-        const points = r.path_data || [];
-        points.forEach(p => {
-          const coords = Array.isArray(p) ? p : p.coords;
-          if (!coords) return;
-          const [lon, lat] = coords;
-          if (lon < minLon) minLon = lon;
-          if (lat < minLat) minLat = lat;
-          if (lon > maxLon) maxLon = lon;
-          if (lat > maxLat) maxLat = lat;
-        });
-      });
-
-      if (minLon !== Infinity) {
-        const padding = 0.05;
-        map.update({
-          location: {
-            bounds: [
-              [minLon - padding, minLat - padding],
-              [maxLon + padding, maxLat + padding]
-            ]
-          },
-          duration: 800
-        });
-      }
-    }
-
     // Рисуем попап отдельно после всех маркеров, чтобы он был сверху (только в редакторе)
     if (mode === 'route-editor' && activePopupIndex !== null) {
       const points = routesToRender[0]?.path_data || [];
       const pointData = points[activePopupIndex];
       if (pointData) {
-        const coords = Array.isArray(pointData) ? pointData : pointData.coords;
+        const coords = parseCoords(pointData);
+        if (coords) {
+          const { YMapMarker } = window.ymaps3;
 
-        const popupEl = createStopTypePopupElement({
-          currentType: pointData.stop_type,
-          onSelect: (newType) => {
-            if (onPointChangeRef.current) {
-              onPointChangeRef.current(activePopupIndex, 'stop_type', newType);
+          const popupEl = createStopTypePopupElement({
+            currentType: pointData.stop_type,
+            onSelect: (newType) => {
+              if (onPointChangeRef.current) {
+                onPointChangeRef.current(activePopupIndex, 'stop_type', newType);
+              }
+              setActivePopupIndex(null);
+              if (onPointClickRef.current) onPointClickRef.current(null);
+            },
+            onCancel: () => {
+              setActivePopupIndex(null);
+              if (onPointClickRef.current) onPointClickRef.current(null);
             }
-            setActivePopupIndex(null);
-            if (onPointClickRef.current) onPointClickRef.current(null);
-          },
-          onCancel: () => {
-            setActivePopupIndex(null);
-            if (onPointClickRef.current) onPointClickRef.current(null);
-          }
-        });
+          });
 
-        const popupMarker = new YMapMarker({ coordinates: coords }, popupEl);
-        map.addChild(popupMarker);
-        routeFeaturesRef.current.markers.push(popupMarker);
+          const popupMarker = new YMapMarker({ coordinates: coords }, popupEl);
+          map.addChild(popupMarker);
+          routeFeaturesRef.current.markers.push(popupMarker);
+        }
       }
     }
 
     return () => {
-
       const { polylines: p, markers: m } = routeFeaturesRef.current;
       p.forEach(line => {
         try { map.removeChild(line); } catch (e) { }
@@ -402,7 +511,50 @@ export function YandexMap({
         try { map.removeChild(marker); } catch (e) { }
       });
     };
-  }, [map, routes, props.routePoints, mode, activePopupIndex, showPath, onRouteHover, onRouteClick]);
+  }, [map, routes, props.routePoints, mode, activePopupIndex, showPath, showMilestones, onRouteHover, onRouteClick]);
+
+  // ─── Центрирование карты (fitBounds) ──────────────────────────────────
+  useEffect(() => {
+    if (!map || !window.ymaps3 || (mode !== 'route-viewer' && mode !== 'point-selector')) return;
+
+    // Центрируем только если изменился маршрут или был нажат сброс
+    const routeChanged = routeId !== lastCenteredRouteIdRef.current;
+    const resetPressed = resetKey !== lastResetKeyRef.current;
+
+    if (!routeChanged && !resetPressed) return;
+
+    const routesToRender = routes.length > 0 ? routes : (props.routePoints ? [{ path_data: props.routePoints }] : []);
+    if (routesToRender.length === 0) return;
+
+    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+    routesToRender.forEach(r => {
+      const points = r.path_data || [];
+      points.forEach(p => {
+        const coords = parseCoords(p);
+        if (!coords) return;
+        const [lon, lat] = coords;
+        if (lon < minLon) minLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lon > maxLon) maxLon = lon;
+        if (lat > maxLat) maxLat = lat;
+      });
+    });
+
+    if (minLon !== Infinity) {
+      const padding = 0.05;
+      map.update({
+        location: {
+          bounds: [
+            [minLon - padding, minLat - padding],
+            [maxLon + padding, maxLat + padding]
+          ]
+        },
+        duration: 800
+      });
+      lastCenteredRouteIdRef.current = routeId;
+      lastResetKeyRef.current = resetKey;
+    }
+  }, [map, routes, resetKey, mode, routeId, props.routePoints]);
 
   // Эффект для плавного обновления прозрачности при наведении
   useEffect(() => {
@@ -415,7 +567,7 @@ export function YandexMap({
       const vRouteId = video.routeId || video.route_id;
       const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
       const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
-      
+
       const element = marker.element || marker._element;
       if (element) {
         element.style.opacity = opacity.toString();
@@ -424,13 +576,13 @@ export function YandexMap({
 
     // Обновляем маркеры и линии маршрута
     const { polylines, markers } = routeFeaturesRef.current;
-    
+
     markers.forEach(marker => {
       const rId = marker.routeId;
       if (!rId) return;
       const isCurrentHovered = hoveredRouteId && String(rId) === String(hoveredRouteId);
       const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
-      
+
       const element = marker.element || marker._element;
       if (element) {
         element.style.opacity = opacity.toString();
@@ -443,17 +595,17 @@ export function YandexMap({
       const isCurrentHovered = hoveredRouteId && String(rId) === String(hoveredRouteId);
       const opacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
       const weight = isCurrentHovered ? 6 : 4;
-      
+
       // В YMaps 3.0 обновляем через свойство style
       if (polyline.update) {
         polyline.update({
           style: {
-            stroke: [{ color: polyline.style?.stroke?.[0]?.color, width: weight, opacity: opacity }]
+            stroke: [{ color: polyline.originalColor || '#6366f1', width: weight, opacity: opacity }]
           }
         });
       }
     });
-  }, [hoveredRouteId, map]);
+  }, [hoveredRouteId, map, routes, showMilestones, videos, showVideos]);
 
   // Рендер выбранной точки (point-selector)
   useEffect(() => {
@@ -466,13 +618,14 @@ export function YandexMap({
       selectedPointMarkerRef.current = null;
     }
 
-    if (selectedPoint) {
+    const parsedSelectedPoint = parseCoords(selectedPoint);
+    if (parsedSelectedPoint) {
       const el = document.createElement('div');
       el.className = 'selected-point-marker';
       el.innerHTML = '<div style="width:20px;height:20px;background:#6366f1;border:3px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,0.4);transform:translate(-50%,-50%);cursor:pointer;"></div>';
 
       const marker = new YMapMarker({
-        coordinates: selectedPoint,
+        coordinates: parsedSelectedPoint,
         draggable: true,
         zIndex: 1000,
         onDragEnd: (coordinates) => {
@@ -534,7 +687,6 @@ export function YandexMap({
   }, [map, debouncedMapCenter, mode]);
 
   // Обновление видео после загрузки нового
-  const refreshVideosRef = useRef(() => { });
   useEffect(() => {
     refreshVideosRef.current = () => {
       const lat = mapCenter[1];
@@ -567,6 +719,17 @@ export function YandexMap({
           setIsMapMoving(true);
           setMapCenter(location.center);
           setMapZoom(location.zoom);
+        }
+
+        if (location.bounds) {
+          const b = location.bounds;
+          setMapBounds({
+            bounds: {
+              _southWest: { lat: b[0][1], lng: b[0][0] },
+              _northEast: { lat: b[1][1], lng: b[1][0] }
+            },
+            zoom: location.zoom
+          });
         }
 
         lastLocation = location;
@@ -609,34 +772,58 @@ export function YandexMap({
     };
   }, [map]);
 
-  // Инициализация карты
   useEffect(() => {
-    if (window.ymaps3 && !map) {
-      // Получаем координаты из mapState
-      const savedState = loadMapState(MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM);
+    // Ждем когда ymapsReady станет true И появится объект в window
+    if (ymapsReady && window.ymaps3 && !map && mapContainerRef.current && !isInitializingRef.current) {
+      isInitializingRef.current = true;
 
-      initMap({
-        containerId: 'map',
-        center: savedState.center,
-        zoom: savedState.zoom,
-        userRef,
-        selectionMarkerRef,
-        onUploadRef,
-        onFetchVideosRef,
-        navigate,
-        highlightedVideoIdRef,
-        refreshVideosRef,
-        mode,
-        onMapClickRef
-      }).then(({ map }) => {
-        setMap(map);
-        // Устанавливаем координаты из mapState для первого запроса видео
-        setMapCenter(savedState.center);
-        setMapZoom(savedState.zoom);
-        mapInitializedRef.current = true;
-      });
+      // Небольшая задержка, чтобы React успел отрисовать контейнер
+      setTimeout(() => {
+        if (!mapContainerRef.current) {
+          isInitializingRef.current = false;
+          return;
+        }
+
+        const savedState = loadMapState(MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM);
+
+        initMap({
+          container: mapContainerRef.current,
+          center: savedState.center,
+          zoom: savedState.zoom,
+          userRef,
+          selectionMarkerRef,
+          onUploadRef,
+          onFetchVideosRef,
+          navigate,
+          highlightedVideoIdRef,
+          refreshVideosRef,
+          mode,
+          onMapClickRef
+        }).then((result) => {
+          if (result && result.map) {
+            setMap(result.map);
+            setMapCenter(savedState.center);
+            setMapZoom(savedState.zoom);
+            mapInitializedRef.current = true;
+            if (result.map.location && result.map.location.bounds) {
+              const b = result.map.location.bounds;
+              setMapBounds({
+                bounds: {
+                  _southWest: { lat: b[0][1], lng: b[0][0] },
+                  _northEast: { lat: b[1][1], lng: b[1][0] }
+                },
+                zoom: result.map.location.zoom
+              });
+            }
+          } else {
+            isInitializingRef.current = false;
+          }
+        }).catch(err => {
+          isInitializingRef.current = false;
+        });
+      }, 100);
     }
-  }, [map, navigate, onUploadRef, onFetchVideosRef]);
+  }, [map, mode, navigate, ymapsReady]);
 
   // Очистка при размонтировании компонента
   useEffect(() => {
@@ -658,11 +845,130 @@ export function YandexMap({
       }
     };
   }, [map]);
+ 
+  // Регистрация общего слушателя событий на карте для маршрутов (наведение, клик, тултипы)
+  useEffect(() => {
+    if (!map || !window.ymaps3) return;
+
+    const { YMapListener, YMapFeature } = window.ymaps3;
+
+    const featureListener = new YMapListener({
+      layer: 'any',
+      onClick: (object) => {
+        const entity = object?.entity;
+        if (entity && entity instanceof YMapFeature) {
+          const routeId = entity.routeId;
+          if (routeId) {
+            onRouteClick?.(routeId);
+          }
+        }
+      },
+      onMouseEnter: (object, event) => {
+        const entity = object?.entity;
+        if (entity && entity instanceof YMapFeature) {
+          const routeId = entity.routeId;
+          if (routeId) {
+            onRouteHover?.(routeId);
+            if (mapContainerRef.current) {
+              mapContainerRef.current.style.cursor = 'pointer';
+            }
+            if (entity.routeTitle && mapContainerRef.current) {
+              if (mode === 'videos') {
+                mapContainerRef.current.title = entity.routeTitle;
+              } else {
+                let x = 0, y = 0;
+                if (event?.domEvent) {
+                  const rect = mapContainerRef.current.getBoundingClientRect();
+                  x = event.domEvent.clientX - rect.left;
+                  y = event.domEvent.clientY - rect.top;
+                } else if (event?.position) {
+                  x = event.position[0];
+                  y = event.position[1];
+                }
+                setTooltipState({
+                  show: true,
+                  text: entity.routeTitle,
+                  x: x,
+                  y: y
+                });
+              }
+            }
+          }
+        }
+      },
+      onMouseMove: (object, event) => {
+        const entity = object?.entity;
+        if (entity && entity instanceof YMapFeature) {
+          if (mode !== 'videos' && entity.routeTitle && mapContainerRef.current) {
+            let x = 0, y = 0;
+            if (event?.domEvent) {
+              const rect = mapContainerRef.current.getBoundingClientRect();
+              x = event.domEvent.clientX - rect.left;
+              y = event.domEvent.clientY - rect.top;
+            } else if (event?.position) {
+              x = event.position[0];
+              y = event.position[1];
+            }
+            setTooltipState(prev => ({
+              ...prev,
+              x: x,
+              y: y
+            }));
+          }
+        }
+      },
+      onMouseLeave: (object) => {
+        const entity = object?.entity;
+        if (entity && entity instanceof YMapFeature) {
+          onRouteHover?.(null);
+          if (mapContainerRef.current) {
+            mapContainerRef.current.style.cursor = '';
+            mapContainerRef.current.title = '';
+          }
+          setTooltipState({ show: false, text: '', x: 0, y: 0 });
+        }
+      }
+    });
+
+    map.addChild(featureListener);
+
+    return () => {
+      try {
+        map.removeChild(featureListener);
+      } catch (e) { }
+    };
+  }, [map, onRouteHover, onRouteClick]);
 
   return (
-    <div className="map-wrapper" style={{ height: '100%', width: '100%' }}>
-      <div ref={mapContainerRef} style={{ position: 'relative', height: '100%', width: '100%' }}>
-        <div id="map" className="map-container" style={{ height: '100%', width: '100%' }} />
+    <div className="map-wrapper" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, height: '100%', width: '100%', margin: 0, boxShadow: 'none', borderRadius: 0 }}>
+      <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+        <div
+          ref={mapContainerRef}
+          className="map-container"
+          style={{ height: '100%', width: '100%' }}
+        />
+        {tooltipState.show && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${tooltipState.x + 15}px`,
+              top: `${tooltipState.y + 15}px`,
+              backgroundColor: 'rgba(17, 24, 39, 0.9)',
+              color: '#ffffff',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '600',
+              pointerEvents: 'none',
+              zIndex: 99999,
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+              whiteSpace: 'nowrap',
+              border: '1px solid rgba(255, 255, 255, 0.15)'
+            }}
+          >
+            {tooltipState.text}
+          </div>
+        )}
       </div>
     </div>
   );

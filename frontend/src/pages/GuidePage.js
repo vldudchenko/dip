@@ -40,7 +40,16 @@ export const GuidePage = () => {
   const [sessionToDelete, setSessionToDelete] = useState(null);
   const [sessionPage, setSessionPage] = useState(1);
   const [sessionSortBy, setSessionSortBy] = useState('date-desc');
-  const [sessionFilterStatus, setSessionFilterStatus] = useState('all');
+  const [sessionFilterStatuses, setSessionFilterStatuses] = useState(new Set(['waiting', 'pending_date']));
+
+  // Custom dropdown open states
+  const [sessionStatusDropdownOpen, setSessionStatusDropdownOpen] = useState(false);
+  const [sessionOwnershipDropdownOpen, setSessionOwnershipDropdownOpen] = useState(false);
+  const [sessionRouteDropdownOpen, setSessionRouteDropdownOpen] = useState(false);
+  const [sessionSortDropdownOpen, setSessionSortDropdownOpen] = useState(false);
+  const [sessionsPerPageDropdownOpen, setSessionsPerPageDropdownOpen] = useState(false);
+  const [routesPerPageDropdownOpen, setRoutesPerPageDropdownOpen] = useState(false);
+
   const [sessionFilterRoute, setSessionFilterRoute] = useState('all');
   const [sessionFilterOwnership, setSessionFilterOwnership] = useState('all');
   const [sessionsPerPage, setSessionsPerPage] = useState(() =>
@@ -55,6 +64,35 @@ export const GuidePage = () => {
   const closeAllForms = () => {
     setActiveSessionEditId(null);
   };
+
+  const closeAllDropdowns = () => {
+    setSessionStatusDropdownOpen(false);
+    setSessionOwnershipDropdownOpen(false);
+    setSessionRouteDropdownOpen(false);
+    setSessionSortDropdownOpen(false);
+    setSessionsPerPageDropdownOpen(false);
+    setRoutesPerPageDropdownOpen(false);
+  };
+
+  useEffect(() => {
+    if (
+      !sessionStatusDropdownOpen &&
+      !sessionOwnershipDropdownOpen &&
+      !sessionRouteDropdownOpen &&
+      !sessionSortDropdownOpen &&
+      !sessionsPerPageDropdownOpen &&
+      !routesPerPageDropdownOpen
+    ) return;
+    document.addEventListener('click', closeAllDropdowns);
+    return () => document.removeEventListener('click', closeAllDropdowns);
+  }, [
+    sessionStatusDropdownOpen,
+    sessionOwnershipDropdownOpen,
+    sessionRouteDropdownOpen,
+    sessionSortDropdownOpen,
+    sessionsPerPageDropdownOpen,
+    routesPerPageDropdownOpen
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -333,21 +371,39 @@ export const GuidePage = () => {
                 <div className="sessions-filters">
                   <div className="filters-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className="filter-label" style={{ fontSize: '0.875rem', color: '#666' }}>На странице:</span>
-                    <select
-                      value={routesPerPage}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setRoutesPerPage(val);
-                        localStorage.setItem('routesPerPage', val);
-                        setRoutePage(1);
-                      }}
-                      className="sort-select"
-                    >
-                      <option value={4}>4</option>
-                      <option value={6}>6</option>
-                      <option value={8}>8</option>
-                      <option value={10}>10</option>
-                    </select>
+                    <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        className={`sort-select sort-select--small status-filter-trigger${routesPerPageDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextState = !routesPerPageDropdownOpen;
+                          closeAllDropdowns();
+                          setRoutesPerPageDropdownOpen(nextState);
+                        }}
+                      >
+                        {routesPerPage}
+                      </button>
+                      {routesPerPageDropdownOpen && (
+                        <div className="status-filter-menu status-filter-menu--small" onClick={e => e.stopPropagation()}>
+                          {[4, 6, 8, 10].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              className={`status-filter-option-btn${routesPerPage === val ? ' active' : ''}`}
+                              onClick={() => {
+                                setRoutesPerPage(val);
+                                localStorage.setItem('routesPerPage', val);
+                                setRoutePage(1);
+                                closeAllDropdowns();
+                              }}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="routes-list" style={routes.length < routesPerPage ? { minHeight: 'auto' } : { minHeight: `${routesPerPage * 150}px` }}>
@@ -449,122 +505,286 @@ export const GuidePage = () => {
                       const hasOwn = guideSessions.some(s => ownRouteIds.has(s.route_id));
                       const hasOther = guideSessions.some(s => !ownRouteIds.has(s.route_id));
 
-                      // Если есть и те, и другие, показываем селект. Если только один тип - может и не надо фильтр?
-                      // Но пользователь просил именно условия на опции.
                       if (!hasOwn && !hasOther) return null;
 
+                      const labels = {
+                        all: 'Все маршруты',
+                        own: 'Свои маршруты',
+                        other: 'Чужие маршруты'
+                      };
+
                       return (
-                        <select
-                          value={sessionFilterOwnership}
-                          onChange={(e) => {
-                            setSessionFilterOwnership(e.target.value);
-                            setSessionFilterRoute('all');
-                            setSessionPage(1);
-                          }}
-                          className="sort-select"
-                        >
-                          <option value="all">Все маршруты</option>
-                          {hasOwn && <option value="own">Свои маршруты</option>}
-                          {hasOther && <option value="other">Чужие маршруты</option>}
-                        </select>
+                        <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className={`sort-select status-filter-trigger${sessionOwnershipDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextState = !sessionOwnershipDropdownOpen;
+                              closeAllDropdowns();
+                              setSessionOwnershipDropdownOpen(nextState);
+                            }}
+                          >
+                            {labels[sessionFilterOwnership] || 'Все маршруты'}
+                          </button>
+                          {sessionOwnershipDropdownOpen && (
+                            <div className="status-filter-menu" onClick={e => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className={`status-filter-option-btn${sessionFilterOwnership === 'all' ? ' active' : ''}`}
+                                onClick={() => {
+                                  setSessionFilterOwnership('all');
+                                  setSessionFilterRoute('all');
+                                  setSessionPage(1);
+                                  closeAllDropdowns();
+                                }}
+                              >
+                                Все маршруты
+                              </button>
+                              {hasOwn && (
+                                <button
+                                  type="button"
+                                  className={`status-filter-option-btn${sessionFilterOwnership === 'own' ? ' active' : ''}`}
+                                  onClick={() => {
+                                    setSessionFilterOwnership('own');
+                                    setSessionFilterRoute('all');
+                                    setSessionPage(1);
+                                    closeAllDropdowns();
+                                  }}
+                                >
+                                  Свои маршруты
+                                </button>
+                              )}
+                              {hasOther && (
+                                <button
+                                  type="button"
+                                  className={`status-filter-option-btn${sessionFilterOwnership === 'other' ? ' active' : ''}`}
+                                  onClick={() => {
+                                    setSessionFilterOwnership('other');
+                                    setSessionFilterRoute('all');
+                                    setSessionPage(1);
+                                    closeAllDropdowns();
+                                  }}
+                                >
+                                  Чужие маршруты
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       );
                     })()}
 
-                    <select
-                      value={sessionFilterRoute}
-                      onChange={(e) => {
-                        const newRouteId = e.target.value;
-                        setSessionFilterRoute(newRouteId);
-                        setSessionPage(1);
+                    {(() => {
+                      const ownRouteIds = new Set(routes.map(r => r.id));
+                      const availableRoutesMap = new Map();
 
-                        // Если выбранный статус недоступен для нового маршрута, сбрасываем его
-                        if (sessionFilterStatus !== 'all') {
-                          const hasStatus = guideSessions.some(s =>
-                            (newRouteId === 'all' || s.route_id === newRouteId) &&
-                            s.status === sessionFilterStatus
-                          );
-                          if (!hasStatus) {
-                            setSessionFilterStatus('all');
+                      guideSessions.forEach(s => {
+                        const isOwn = ownRouteIds.has(s.route_id);
+                        if (sessionFilterOwnership === 'all' ||
+                          (sessionFilterOwnership === 'own' && isOwn) ||
+                          (sessionFilterOwnership === 'other' && !isOwn)) {
+                          if (!availableRoutesMap.has(s.route_id)) {
+                            availableRoutesMap.set(s.route_id, s.route?.title || `Маршрут #${s.route_id}`);
                           }
                         }
-                      }}
-                      className="sort-select"
-                    >
-                      <option value="all">Все маршруты</option>
-                      {(() => {
-                        const ownRouteIds = new Set(routes.map(r => r.id));
-                        const availableRoutesMap = new Map();
+                      });
 
-                        guideSessions.forEach(s => {
-                          const isOwn = ownRouteIds.has(s.route_id);
-                          if (sessionFilterOwnership === 'all' ||
-                            (sessionFilterOwnership === 'own' && isOwn) ||
-                            (sessionFilterOwnership === 'other' && !isOwn)) {
-                            if (!availableRoutesMap.has(s.route_id)) {
-                              availableRoutesMap.set(s.route_id, s.route?.title || `Маршрут #${s.route_id}`);
-                            }
-                          }
-                        });
+                      const currentRouteLabel = sessionFilterRoute === 'all'
+                        ? 'Все маршруты'
+                        : availableRoutesMap.get(Number(sessionFilterRoute)) || availableRoutesMap.get(sessionFilterRoute) || 'Выбран маршрут';
 
-                        return Array.from(availableRoutesMap.entries()).map(([id, title]) => (
-                          <option key={id} value={id}>{title}</option>
-                        ));
-                      })()}
-                    </select>
+                      return (
+                        <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className={`sort-select status-filter-trigger${sessionRouteDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextState = !sessionRouteDropdownOpen;
+                              closeAllDropdowns();
+                              setSessionRouteDropdownOpen(nextState);
+                            }}
+                          >
+                            {currentRouteLabel}
+                          </button>
+                          {sessionRouteDropdownOpen && (
+                            <div className="status-filter-menu" onClick={e => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className={`status-filter-option-btn${sessionFilterRoute === 'all' ? ' active' : ''}`}
+                                onClick={() => {
+                                  setSessionFilterRoute('all');
+                                  setSessionPage(1);
+                                  closeAllDropdowns();
+                                }}
+                              >
+                                Все маршруты
+                              </button>
+                              {Array.from(availableRoutesMap.entries()).map(([id, title]) => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className={`status-filter-option-btn${String(sessionFilterRoute) === String(id) ? ' active' : ''}`}
+                                  onClick={() => {
+                                    setSessionFilterRoute(id);
+                                    setSessionPage(1);
+                                    closeAllDropdowns();
+                                  }}
+                                >
+                                  {title}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
-                    <select
-                      value={sessionFilterStatus}
-                      onChange={(e) => {
-                        setSessionFilterStatus(e.target.value);
-                        setSessionPage(1);
-                      }}
-                      className="sort-select"
-                    >
-                      <option value="all">Все статусы</option>
-                      {Object.entries(STATUS_LABELS)
-                        .filter(([value]) =>
-                          guideSessions.some(s =>
-                            (sessionFilterRoute === 'all' || s.route_id === sessionFilterRoute) &&
-                            s.status === value
-                          )
-                        )
-                        .map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
+                    {(() => {
+                      const activeLabels = Object.entries(STATUS_LABELS)
+                        .filter(([val]) => sessionFilterStatuses.has(val))
+                        .map(([_, label]) => label);
+
+                      let triggerElement;
+                      if (activeLabels.length === Object.keys(STATUS_LABELS).length) {
+                        triggerElement = <span>Все статусы</span>;
+                      } else if (activeLabels.length === 1) {
+                        triggerElement = <span>{activeLabels[0]}</span>;
+                      } else if (activeLabels.length === 0) {
+                        triggerElement = <span>Ничего не выбрано</span>;
+                      } else {
+                        triggerElement = (
+                          <span>
+                            Статус <span className="tab-count">{activeLabels.length}</span>
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className={`sort-select status-filter-trigger${sessionStatusDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextState = !sessionStatusDropdownOpen;
+                              closeAllDropdowns();
+                              setSessionStatusDropdownOpen(nextState);
+                            }}
+                          >
+                            {triggerElement}
+                          </button>
+                          {sessionStatusDropdownOpen && (
+                            <div className="status-filter-menu" onClick={e => e.stopPropagation()}>
+                              {Object.entries(STATUS_LABELS).map(([value, label]) => {
+                                const isChecked = sessionFilterStatuses.has(value);
+                                return (
+                                  <label key={value} className="status-filter-item">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        const newStatuses = new Set(sessionFilterStatuses);
+                                        if (isChecked) {
+                                          newStatuses.delete(value);
+                                        } else {
+                                          newStatuses.add(value);
+                                        }
+                                        setSessionFilterStatuses(newStatuses);
+                                        setSessionPage(1);
+                                      }}
+                                    />
+                                    <span>{label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  <select
-                    value={sessionSortBy}
-                    onChange={(e) => {
-                      setSessionSortBy(e.target.value);
-                      setSessionPage(1);
-                    }}
-                    className="sort-select"
-                  >
-                    <option value="date-desc">Сначала новые</option>
-                    <option value="date-asc">Сначала старые</option>
-                    <option value="price-asc">Дешевле</option>
-                    <option value="price-desc">Дороже</option>
-                  </select>
+                  {(() => {
+                    const sortLabels = {
+                      'date-desc': 'Сначала новые',
+                      'date-asc': 'Сначала старые',
+                      'price-asc': 'Дешевле',
+                      'price-desc': 'Дороже'
+                    };
+
+                    return (
+                      <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          className={`sort-select status-filter-trigger${sessionSortDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextState = !sessionSortDropdownOpen;
+                            closeAllDropdowns();
+                            setSessionSortDropdownOpen(nextState);
+                          }}
+                        >
+                          {sortLabels[sessionSortBy] || 'Сортировка'}
+                        </button>
+                        {sessionSortDropdownOpen && (
+                          <div className="status-filter-menu" onClick={e => e.stopPropagation()}>
+                            {Object.entries(sortLabels).map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={`status-filter-option-btn${sessionSortBy === value ? ' active' : ''}`}
+                                onClick={() => {
+                                  setSessionSortBy(value);
+                                  setSessionPage(1);
+                                  closeAllDropdowns();
+                                }}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="filters-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className="filter-label" style={{ fontSize: '0.875rem', color: '#666' }}>На странице:</span>
-                    <select
-                      value={sessionsPerPage}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setSessionsPerPage(val);
-                        localStorage.setItem('sessionsPerPage', val);
-                        setSessionPage(1);
-                      }}
-                      className="sort-select"
-                    >
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={15}>15</option>
-                      <option value={20}>20</option>
-                    </select>
+                    <div className="status-filter-dropdown" style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        className={`sort-select sort-select--small status-filter-trigger${sessionsPerPageDropdownOpen ? ' status-filter-trigger--open' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextState = !sessionsPerPageDropdownOpen;
+                          closeAllDropdowns();
+                          setSessionsPerPageDropdownOpen(nextState);
+                        }}
+                      >
+                        {sessionsPerPage}
+                      </button>
+                      {sessionsPerPageDropdownOpen && (
+                        <div className="status-filter-menu status-filter-menu--small" onClick={e => e.stopPropagation()}>
+                          {[5, 10, 15, 20].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              className={`status-filter-option-btn${sessionsPerPage === val ? ' active' : ''}`}
+                              onClick={() => {
+                                setSessionsPerPage(val);
+                                localStorage.setItem('sessionsPerPage', val);
+                                setSessionPage(1);
+                                closeAllDropdowns();
+                              }}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="sessions-list" style={guideSessions.length < sessionsPerPage ? { minHeight: 'auto' } : undefined}>
@@ -576,8 +796,8 @@ export const GuidePage = () => {
                       const matchOwnership = sessionFilterOwnership === 'all' ||
                         (sessionFilterOwnership === 'own' && isOwn) ||
                         (sessionFilterOwnership === 'other' && !isOwn);
-                      const matchStatus = sessionFilterStatus === 'all' || s.status === sessionFilterStatus;
-                      const matchRoute = sessionFilterRoute === 'all' || s.route_id === sessionFilterRoute;
+                      const matchStatus = sessionFilterStatuses.has(s.status);
+                      const matchRoute = sessionFilterRoute === 'all' || String(s.route_id) === String(sessionFilterRoute);
                       return matchOwnership && matchStatus && matchRoute;
                     });
 

@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 // Хуки
 import { useAuth } from '../hooks/useAuth';
@@ -13,7 +14,6 @@ import { useGeocoding } from '../hooks/useGeocoding';
 // Компоненты
 import { SkeletonRoutePage } from '../components/Skeletons/SkeletonRoutePage';
 import RouteHeader from '../components/Route/RouteHeader';
-import RouteSummary from '../components/Route/RouteSummary';
 import RouteGallery from '../components/Route/RouteGallery';
 import RouteMapSection from '../components/Route/RouteMapSection';
 import RouteSessionsSection from '../components/Route/RouteSessionsSection';
@@ -47,6 +47,10 @@ export const RoutePage = () => {
     return true;
   });
 
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
   // Использование кастомных хуков
   const {
     route,
@@ -62,6 +66,14 @@ export const RoutePage = () => {
     uploadMedia,
     deleteMedia
   } = useRouteData(id, currentUserId);
+
+  // Синхронизация черновика при загрузке данных или переключении в режим редактирования
+  useEffect(() => {
+    if (route && (!isPreviewMode || isCreating)) {
+      setDraftTitle(route.title || '');
+      setDraftDescription(route.description || '');
+    }
+  }, [route, isPreviewMode, isCreating]);
 
   const {
     sessions,
@@ -85,19 +97,41 @@ export const RoutePage = () => {
   // Хук для фонового получения адресов точек маршрута
   const routeAddresses = useGeocoding(route?.path_data);
 
-  // Обработчик создания маршрута
-  const handleSaveRoute = useCallback(async (title, description) => {
+  // Обработчик сохранения (показ модалки)
+  const handleSaveClick = useCallback(() => {
+    if (!draftTitle.trim()) {
+      alert('Название не может быть пустым');
+      return;
+    }
+    setShowSaveConfirm(true);
+  }, [draftTitle]);
+
+  // Финальное подтверждение сохранения
+  const handleFinalSave = useCallback(async () => {
+    setShowSaveConfirm(false);
     try {
       if (isCreating) {
-        const newRoute = await createRoute(title, description);
-        navigate(`/route/${newRoute.id}`, { replace: true, state: { isPreviewMode: false } });
+        const newRoute = await createRoute(draftTitle, draftDescription);
+        navigate(`/route/${newRoute.id}`, { replace: true, state: { isPreviewMode: true } });
       } else {
-        await updateRouteInfo(title, description);
+        await updateRouteInfo(draftTitle, draftDescription);
+        setIsPreviewMode(true);
       }
     } catch (err) {
       alert(err.message);
     }
-  }, [isCreating, createRoute, updateRouteInfo, navigate]);
+  }, [isCreating, draftTitle, draftDescription, createRoute, updateRouteInfo, navigate]);
+
+  // Отмена редактирования
+  const handleCancelEdit = useCallback(() => {
+    if (isCreating) {
+      navigate(-1);
+    } else {
+      setDraftTitle(route?.title || '');
+      setDraftDescription(route?.description || '');
+      setIsPreviewMode(true);
+    }
+  }, [isCreating, route, navigate]);
 
   // Обработчик удаления маршрута
   const handleDeleteRoute = useCallback(async () => {
@@ -142,21 +176,15 @@ export const RoutePage = () => {
             {/* Секция заголовка и редактирования основной инфо */}
             <RouteHeader
               route={route}
-              isGuide={effectiveIsRouteOwner}
-              onSave={handleSaveRoute}
-              saving={loading}
-              isCreating={isCreating}
-              onCancel={() => navigate(-1)}
+              isEditing={!isPreviewMode}
+              draftTitle={draftTitle}
+              setDraftTitle={setDraftTitle}
+              draftDescription={draftDescription}
+              setDraftDescription={setDraftDescription}
             />
 
             {!isCreating && (
               <>
-                {/* Текстовое резюме пути */}
-                <RouteSummary
-                  pathData={route?.path_data}
-                  addresses={routeAddresses}
-                />
-
                 {/* Галерея изображений и видео */}
                 <RouteGallery
                   images={routeImages.filter(img => img.user_id === route?.guide_id)}
@@ -200,6 +228,7 @@ export const RoutePage = () => {
                   currentUserId={currentUserId}
                   isGuide={effectiveRealIsGuide}
                   routeGuideId={route?.guide_id}
+                  hasCompletedRoute={sessions.some(s => s.status === 'completed' && userJoinedSessions.has(s.id))}
                   onAdd={addComment}
                   onReply={replyComment}
                   onEdit={editComment}
@@ -218,9 +247,22 @@ export const RoutePage = () => {
             isPreviewMode={isPreviewMode}
             onTogglePreview={setIsPreviewMode}
             onDeleteRoute={handleDeleteRoute}
+            onSave={handleSaveClick}
+            onCancel={handleCancelEdit}
+            saving={loading}
           />
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showSaveConfirm}
+        title={isCreating ? "Создание маршрута" : "Сохранение изменений"}
+        message={isCreating ? "Вы уверены, что хотите создать этот маршрут?" : "Сохранить изменения в названии и описании маршрута?"}
+        confirmLabel={isCreating ? "Создать" : "Сохранить"}
+        confirmVariant="primary"
+        onConfirm={handleFinalSave}
+        onCancel={() => setShowSaveConfirm(false)}
+      />
     </div>
   );
 };

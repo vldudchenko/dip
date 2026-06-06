@@ -132,7 +132,7 @@ class MediaStorageService {
     const routeId = additionalData.routeId || 'general';
     const fileExt = path.extname(file.originalname);
     const uniqueId = crypto.randomUUID();
-    
+
     // ╨д╨╛╤А╨╝╨╕╤А╤Г╨╡╨╝ ╨╕╨╝╤П ╤Д╨░╨╣╨╗╨░: route_id/user_login/uuid.ext
     const fileName = `${routeId}/${userLogin}/${uniqueId}${fileExt}`;
 
@@ -148,7 +148,6 @@ class MediaStorageService {
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
         original_name: file.originalname,
-        is_live: additionalData.isLive || false,
         route_id: additionalData.routeId || null
       };
 
@@ -194,12 +193,12 @@ class MediaStorageService {
    */
   async uploadImage(file, userId, routeId) {
     const userLogin = await this.getUserLogin(userId);
-    
+
     if (!routeId) throw new Error('routeId ╨╛╨▒╤П╨╖╨░╤В╨╡╨╗╨╡╨╜ ╨┤╨╗╤П ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╤П');
 
     const fileExt = path.extname(file.originalname);
     const uniqueId = crypto.randomUUID();
-    
+
     // ╨д╨╛╤А╨╝╨╕╤А╤Г╨╡╨╝ ╨╕╨╝╤П ╤Д╨░╨╣╨╗╨░: route_id/user_login/uuid.ext
     const fileName = `${routeId}/${userLogin}/${uniqueId}${fileExt}`;
 
@@ -240,7 +239,7 @@ class MediaStorageService {
    */
   async deleteVideo(videoId, fileUrl) {
     if (!fileUrl) throw new Error('╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ URL ╤Д╨░╨╣╨╗╨░');
-    
+
     const parts = fileUrl.split('/videos/');
     if (parts.length < 2) throw new Error('╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╤Д╨╛╤А╨╝╨░╤В URL ╨▓╨╕╨┤╨╡╨╛');
     const fileName = parts[1];
@@ -260,7 +259,7 @@ class MediaStorageService {
    */
   async deleteImage(imageId, fileUrl) {
     if (!fileUrl) throw new Error('╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ URL ╤Д╨░╨╣╨╗╨░');
-    
+
     const parts = fileUrl.split('/Images/');
     if (parts.length < 2) throw new Error('╨Э╨╡╨▓╨╡╤А╨╜╤Л╨╣ ╤Д╨╛╤А╨╝╨░╤В URL ╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╤П');
     const fileName = parts[1];

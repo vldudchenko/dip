@@ -48,6 +48,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: 100%;
   box-sizing: border-box;
+  clip-path: inset(0 round 12px);
 }
 
 .routes-header-tabs {
@@ -58,6 +59,7 @@
   padding-bottom: 0.5rem;
   flex-wrap: wrap;
   gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .tabs-container {
@@ -320,6 +322,7 @@
 }
 
 .sort-select {
+  width: 180px;
   padding: 0.5rem 2.5rem 0.5rem 1rem;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
@@ -337,6 +340,12 @@
   outline: none;
 }
 
+.sort-select--small {
+  width: 80px;
+  padding-right: 2rem;
+  background-position: right 0.5rem center;
+}
+
 .sort-select:hover {
   border-color: #d1d5db;
   background-color: #f3f4f6;
@@ -346,6 +355,128 @@
   border-color: #7c3aed;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
 }
+
+/* ============================================
+   Кастомный дропдаун фильтрации по статусам
+   ============================================ */
+.status-filter-trigger {
+  display: block;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-image: none;
+  position: relative;
+  padding-right: 2.25rem;
+}
+
+.status-filter-trigger::after {
+  content: '';
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  translate: 0 -50%;
+  width: 1rem;
+  height: 1rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.status-filter-trigger--open::after {
+  transform: rotate(180deg);
+}
+
+.status-filter-trigger .tab-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  position: relative;
+  display: inline-block;
+}
+
+.status-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0.5rem 0;
+  min-width: 180px;
+  width: 100%;
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-filter-option-btn {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-filter-option-btn:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.status-filter-option-btn.active {
+  background-color: #f5f3ff;
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.status-filter-menu--small {
+  min-width: 80px;
+  width: 80px;
+}
+
+.status-filter-menu--small .status-filter-option-btn {
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+}
+
+.status-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.status-filter-item:hover {
+  background: #f3f4f6;
+}
+
+.status-filter-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #7c3aed;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
 
 .session-info-main {
   display: flex;

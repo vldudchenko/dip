@@ -37,7 +37,6 @@
 
 .route-path-main {
   display: flex;
-  height: 1000px;
   overflow: hidden;
   margin-top: 1rem;
   gap: 1rem;
@@ -75,7 +74,7 @@
 
 
 .route-path-sidebar {
-  height: 1000px;
+  min-height: 1122px;
   width: 350px;
   min-width: 350px;
   background: rgba(255, 255, 255, 0.9);

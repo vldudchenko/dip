@@ -2,46 +2,28 @@ import React from 'react';
 import '../../styles/skeleton.css';
 
 /**
- * Универсальный скелетон, использующий реальные классы страниц для идеального выравнивания
+ * Скелетон для страницы Интерактивной карты (InteractiveMapPage).
+ * Использует динамическую высоту на основе вьюпорта.
  */
-export const MapPageSkeleton = ({ isRoutePath = false }) => {
-  const containerClass = isRoutePath ? "route-path-page" : "interactive-map-page-v2";
-  const headerClass = isRoutePath ? "route-path-header" : "map-page-header";
-  const mainClass = isRoutePath ? "route-path-main" : "map-page-main";
-  const sidebarClass = isRoutePath ? "route-path-sidebar" : "map-sidebar";
-  const mapContainerClass = isRoutePath ? "route-path-map-container" : "map-container-wrapper";
-
+export const InteractiveMapSkeleton = () => {
   return (
-    <div className={containerClass} style={{ pointerEvents: 'none' }}>
-      <div className={headerClass}>
-        <div className="header-info">
-          <div className="skeleton-box shimmer" style={{ width: '250px', height: '24px', marginBottom: '8px' }}></div>
-          <div className="skeleton-box shimmer" style={{ width: '180px', height: '14px' }}></div>
-        </div>
-      </div>
-
-      <div className={mainClass}>
-        <div className={mapContainerClass}>
-          <div className="skeleton-box shimmer" style={{ width: '100%', height: '100%' }}></div>
+    <div className="interactive-map-page-v2" style={{ pointerEvents: 'none' }}>
+      <div className="map-page-main" style={{ minHeight: '1138px' }}>
+        {/* Map Area */}
+        <div className="map-container-wrapper" style={{ height: '1138px' }}>
+          <div className="skeleton-box shimmer" style={{ width: '100%', height: '100%', borderRadius: '16px' }}></div>
         </div>
 
-        <div className={sidebarClass}>
+        {/* Sidebar */}
+        <div className="map-sidebar" style={{ minHeight: '1138px' }}>
           <div className="sidebar-header">
-            <div className="skeleton-box shimmer" style={{ width: '150px', height: '20px' }}></div>
+            <div className="skeleton-box shimmer" style={{ width: '150px', height: '22px' }}></div>
           </div>
           <div className="sidebar-content">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={isRoutePath ? "point-item" : "filter-section"} style={{ 
-                border: isRoutePath ? '1px solid #eee' : 'none', 
-                boxShadow: 'none',
-                marginBottom: '1rem',
-                padding: '1rem',
-                borderRadius: '12px'
-              }}>
-                <div className="skeleton-box shimmer" style={{ width: '100px', height: '12px', marginBottom: '12px' }}></div>
-                <div className="skeleton-box shimmer" style={{ width: '100%', height: '40px', borderRadius: '10px' }}></div>
-              </div>
-            ))}
+            <div className="filter-section">
+
+              <div className="skeleton-box shimmer" style={{ width: '100%', height: '930px', borderRadius: '12px' }}></div>
+            </div>
           </div>
         </div>
       </div>
@@ -49,4 +31,51 @@ export const MapPageSkeleton = ({ isRoutePath = false }) => {
   );
 };
 
-export default MapPageSkeleton;
+/**
+ * Скелетон для страницы редактора пути (RoutePathPage).
+ * Использует фиксированную высоту 1122px.
+ */
+export const RoutePathSkeleton = () => {
+  return (
+    <div className="route-path-page" style={{ pointerEvents: 'none' }}>
+      <div className="route-path-header">
+        <div className="header-info">
+          <div className="skeleton-box shimmer" style={{ width: '280px', height: '28px', marginBottom: '4px' }}></div>
+        </div>
+        <div className="route-path-controls" style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="skeleton-box shimmer" style={{ width: '80px', height: '32px', borderRadius: '8px' }}></div>
+          <div className="skeleton-box shimmer" style={{ width: '90px', height: '32px', borderRadius: '8px' }}></div>
+          <div className="skeleton-box shimmer" style={{ width: '90px', height: '32px', borderRadius: '8px' }}></div>
+          <div className="skeleton-box shimmer" style={{ width: '130px', height: '32px', borderRadius: '8px' }}></div>
+        </div>
+      </div>
+
+      <div className="route-path-main" style={{ minHeight: '1122px' }}>
+        <div className="route-path-map-container" style={{ height: '1122px' }}>
+          <div className="skeleton-box shimmer" style={{ width: '100%', height: '100%', borderRadius: '16px' }}></div>
+        </div>
+
+        <div className="route-path-sidebar" style={{ minHeight: '1122px' }}>
+          <div className="sidebar-header">
+            <div className="skeleton-box shimmer" style={{ width: '150px', height: '22px' }}></div>
+          </div>
+          <div className="sidebar-content">
+            <div className="filter-section">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div className="skeleton-box shimmer" style={{ width: '110px', height: '18px' }}></div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => (
+                  <div key={i} className="skeleton-box shimmer" style={{ width: '100%', height: '56px', borderRadius: '12px' }}></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Экспортируем по умолчанию для обратной совместимости, если нужно
+export default InteractiveMapSkeleton;

@@ -24,6 +24,22 @@ export function FaqPage() {
     window.scrollTo(0, 0);
   }, []);
 
+  const email = process.env.REACT_APP_EMAIL_ADDRESS || 'dudchenko.v.i.2.22@gmail.com';
+  const emailSubject = encodeURIComponent('Заявка на получение статуса гида в GeoClips');
+  const emailBody = encodeURIComponent(
+    'Здравствуйте!\n\n' +
+    'Я бы хотел получить статус гида в приложении GeoClips.\n\n' +
+    'Мои данные:\n' +
+    '- Логин в приложении: [Укажите ваш логин в приложении]\n' +
+    '- Имя/Никнейм: [Ваше имя]\n' +
+    '- Город/Регион: [Ваш город]\n\n' +
+    'О себе и планируемых маршрутах:\n' +
+    '[Кратко опишите, какие маршруты вы планируете создавать, их тематику или ваш опыт]\n\n' +
+    'С уважением,\n' +
+    '[Ваше имя]'
+  );
+  const mailtoUrl = `mailto:${email}?subject=${emailSubject}&body=${emailBody}`;
+
   return (
     <div className="legal-container">
       <header className="legal-header">
@@ -54,7 +70,6 @@ export function FaqPage() {
             <li>логин;</li>
             <li>адрес электронной почты;</li>
             <li>изображение профиля;</li>
-            <li>номер телефона;</li>
             <li>дату рождения;</li>
             <li>пол.</li>
           </ul>
@@ -74,6 +89,12 @@ export function FaqPage() {
         <FaqItem question="Кто может создавать маршруты?">
           <p>
             Создавать и редактировать маршруты могут только пользователи с ролью гида. Некоторые функции могут требовать дополнительной верификации аккаунта.
+          </p>
+        </FaqItem>
+
+        <FaqItem question="Как стать гидом?">
+          <p>
+            Чтобы получить статус гида, необходимо отправить обращение по электронной почте: <a href={mailtoUrl}>{email}</a>. В письме укажите ваш логин в приложении и кратко опишите планируемые маршруты.
           </p>
         </FaqItem>
 

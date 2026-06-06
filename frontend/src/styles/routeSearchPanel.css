@@ -1,0 +1,403 @@
+/* ============================================
+   Unified Route Search Panel
+   ============================================ */
+.route-search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-label-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Search Input */
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.filter-search-input {
+  width: 100%;
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  color: #111827;
+  padding: 0.625rem 2.5rem 0.625rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.filter-search-input:hover {
+  border-color: #d1d5db;
+}
+
+.filter-search-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.search-clear-inline {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  color: #6b7280;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: all 0.2s;
+  background: #f9fafb;
+}
+
+.search-clear-inline:hover {
+  background: #d1d5db;
+  color: #111827;
+}
+
+/* Select */
+.filter-select {
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  color: #111827;
+  padding: 0.625rem 0.875rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.filter-select:hover {
+  border-color: #d1d5db;
+}
+
+.filter-select:focus {
+  border-color: #7c3aed;
+}
+
+/* Checkbox Grid (for Transport) */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #4b5563;
+  padding: 0.4rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.checkbox-item:hover {
+  background: #f9fafb;
+}
+
+.checkbox-item input {
+  accent-color: #7c3aed;
+  width: 16px;
+  height: 16px;
+}
+
+/* Dual Range Slider Overrides (if needed) */
+.route-search-panel .slider-header {
+  margin-bottom: 0.25rem;
+}
+
+.route-search-panel .slider-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.route-search-panel .slider-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+/* Advanced Options */
+.filter-checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.filter-checkbox-group input {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  accent-color: #7c3aed;
+}
+
+.filter-checkbox-group span {
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+/* Actions */
+.filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.apply-filters-btn {
+  background: #7c3aed;
+  color: white;
+  border: none;
+  padding: 0.875rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.3);
+}
+
+.apply-filters-btn:hover:not(:disabled) {
+  background: #6d28d9;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(124, 58, 237, 0.4);
+}
+
+.apply-filters-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.apply-filters-btn:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.clear-filters-btn {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.clear-filters-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.clear-filters-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Filter Toggles */
+.filter-label-with-toggle {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 0.625rem;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.25rem;
+}
+
+.filter-label-with-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #7c3aed;
+  cursor: pointer;
+  margin: 0;
+}
+
+.filter-label-with-toggle .filter-label-text {
+  margin: 0;
+  line-height: 1;
+}
+
+/* ============================================
+   Custom Dropdown Styles for Unified Selects
+   ============================================ */
+.sort-select {
+  padding: 0.55rem 2.25rem 0.55rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  background-color: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem;
+  outline: none;
+}
+
+.sort-select:hover {
+  border-color: #d1d5db;
+  background-color: #f3f4f6;
+}
+
+.sort-select:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.status-filter-trigger {
+  display: block;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-image: none !important;
+  position: relative;
+  padding-right: 2.25rem;
+}
+
+.status-filter-trigger::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  translate: 0 -50%;
+  width: 1rem;
+  height: 1rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.status-filter-trigger--open::after {
+  transform: rotate(180deg);
+}
+
+.status-filter-trigger .tab-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  margin-left: 0.25rem;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.status-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0.5rem 0;
+  min-width: 180px;
+  width: 100%;
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.status-filter-item:hover {
+  background: #f3f4f6;
+}
+
+.status-filter-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #7c3aed;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.status-filter-option-btn {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-filter-option-btn:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.status-filter-option-btn.active {
+  background-color: #f5f3ff;
+  color: #7c3aed;
+  font-weight: 600;
+}

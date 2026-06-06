@@ -43,21 +43,28 @@ export function LeafletMap({
   showPath = true,
   showVideos = true,
   routes = [],
-  hoveredRouteId,
   onRouteHover,
   onRouteClick,
+  resetKey,
+  routeId,
+  hoveredRouteId,
+  showMilestones = true,
+  videoFilterMode = 'all',
   ...props
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
+  const lastCenteredRouteIdRef = useRef(null);
+  const lastResetKeyRef = useRef(resetKey);
   const [map, setMap] = useState(null);
   const storedUserId = localStorage.getItem('user_id');
   const safeUserId = storedUserId && storedUserId !== 'undefined' ? storedUserId : null;
   const userRef = useRef({ id: safeUserId });
 
   const videoMarkersRef = useRef([]);
+  const videoClusterGroupRef = useRef(null);
   const routeLayersRef = useRef({ polylines: [], markers: [] });
   const selectionMarkerRef = useRef(null);
   const selectedPointMarkerRef = useRef(null);
@@ -129,7 +136,7 @@ export function LeafletMap({
 
   // Реакция на изменение hoveredRouteId теперь встроена в основные эффекты отрисовки
 
-// ─── Переход со страницы видео (state с координатами) ─────────────────
+  // ─── Переход со страницы видео (state с координатами) ─────────────────
   useEffect(() => {
     if (!map) return;
     const state = location.state;
@@ -147,71 +154,168 @@ export function LeafletMap({
   }, [location.state, navigate]);
 
 
-// ─── Маркеры видео ────────────────────────────────────────────────────
+  // ─── Debounced Bounds для кластеризации ───────────────────────────────
+  const [mapBounds, setMapBounds] = useState(null);
+  const debouncedBounds = useDebounce(mapBounds, 500);
+  const [clusters, setClusters] = useState([]);
+
+  useEffect(() => {
+    if (!map) return;
+    const updateBounds = () => {
+      setMapBounds({
+        bounds: map.getBounds(),
+        zoom: map.getZoom()
+      });
+    };
+    // Initial fetch
+    updateBounds();
+    map.on('moveend', updateBounds);
+    return () => map.off('moveend', updateBounds);
+  }, [map]);
+
+  useEffect(() => {
+    if (!map || mode !== 'videos' || !showVideos || !debouncedBounds) return;
+
+    let isMounted = true;
+    const fetchClusters = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/videos/clusters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // Передаем zoom + 1, чтобы кластеризация была менее агрессивной (мельче сетка)
+          body: JSON.stringify({ bounds: debouncedBounds.bounds, zoom: debouncedBounds.zoom + 1 })
+        });
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        if (isMounted) setClusters(data);
+      } catch (e) {
+        console.error('Failed to fetch clusters', e);
+      }
+    };
+    fetchClusters();
+    return () => { isMounted = false; };
+  }, [debouncedBounds, mode, showVideos, map]);
+
+  // ─── Маркеры видео и кластеров ─────────────────────────────────────────
   useEffect(() => {
     if (!map || mode === 'route-editor' || !showVideos) {
-      videoMarkersRef.current.forEach(m => m.remove());
-      videoMarkersRef.current = [];
+      if (videoClusterGroupRef.current) {
+        videoClusterGroupRef.current.forEach(m => m.remove());
+        videoClusterGroupRef.current = [];
+      }
       return;
     }
 
-    videoMarkersRef.current.forEach(m => m.remove());
+    if (videoClusterGroupRef.current) {
+      videoClusterGroupRef.current.forEach(m => m.remove());
+    }
+    videoClusterGroupRef.current = [];
     videoMarkersRef.current = [];
+
+    // На высоких уровнях зума (>= 17) отключаем кластеризацию для детального просмотра
+    // Кластеризация используется только в режиме "Все видео" и на зуме < 17.
+    // В режиме "По маршрутам" используем сырые отфильтрованные данные (videos),
+    // так как серверный RPC кластеризации пока не поддерживает фильтрацию по ID маршрутов.
+    const currentData = (mode === 'videos' && videoFilterMode === 'all' && clusters.length > 0 && map.getZoom() < 17)
+      ? clusters
+      : videos;
 
     // Создаем карту названий маршрутов для видео
     const routeTitles = {};
-    (props.allRoutes || []).forEach(r => {
+    const sourceRoutes = props.allRoutes || routes || [];
+    sourceRoutes.forEach(r => {
       if (r.id) routeTitles[r.id] = r.title;
     });
 
-    videos.forEach((video) => {
+    currentData.forEach((item) => {
       try {
-        const lat = Number(video.latitude);
-        const lng = Number(video.longitude);
+        const lat = Number(item.lat || item.latitude);
+        const lng = Number(item.lng || item.longitude);
         if (isNaN(lat) || isNaN(lng)) return;
 
-        const isHighlighted = highlightedVideoId && video.id === highlightedVideoId;
-        const vRouteId = video.routeId || video.route_id;
-        const isCurrentHovered = hoveredRouteId && vRouteId && String(vRouteId) === String(hoveredRouteId);
-        const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
-        const icon = createVideoIcon(video, isHighlighted);
-        
-        const marker = L.marker([lat, lng], { 
-          icon, 
-          opacity,
-          zIndexOffset: 1000,
-          videoData: video // Сохраняем данные для обновления прозрачности
-        });
-        
-        // Добавляем подсказку с названием маршрута
-        if (vRouteId && routeTitles[vRouteId]) {
-          marker.bindTooltip(routeTitles[vRouteId], { sticky: true, className: 'route-tooltip' });
+        let marker;
+
+        if (item.is_cluster) {
+          // Рисуем кластер
+          const size = item.count < 10 ? 30 : item.count < 100 ? 40 : 50;
+          const color = item.count < 10 ? '#7c3aed' : item.count < 100 ? 'rgba(240, 194, 12, 0.6)' : 'rgba(241, 128, 23, 0.6)';
+
+          const icon = L.divIcon({
+            html: `
+              <div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; border: 2px solid rgba(255,255,255,0.5);">
+                <span>${item.count}</span>
+              </div>
+            `,
+            className: 'custom-cluster-icon',
+            iconSize: L.point(size, size, true)
+          });
+
+          marker = L.marker([lat, lng], { icon, zIndexOffset: 1000 });
+          marker.on('click', () => {
+            map.setView([lat, lng], map.getZoom() + 2);
+          });
+        } else {
+          // Обычный видео-маркер
+          // Адаптируем данные сервера для createVideoIcon
+          const videoData = {
+            id: item.video_id || item.id,
+            latitude: lat,
+            longitude: lng,
+            routeId: item.route_id,
+            poster_url: item.poster_url,
+            users: {
+              login: item.user_login || item.users?.login,
+              avatar: item.user_avatar || item.users?.avatar
+            }
+          };
+
+          const isHighlighted = highlightedVideoId && videoData.id === highlightedVideoId;
+          const icon = createVideoIcon(videoData, isHighlighted);
+
+          marker = L.marker([lat, lng], {
+            icon,
+            opacity: 1,
+            zIndexOffset: 1000,
+            videoData
+          });
+
+          // Добавляем подсказку с названием маршрута
+          const vRouteId = videoData.routeId;
+          if (vRouteId && routeTitles[vRouteId]) {
+            marker.bindTooltip(routeTitles[vRouteId], { sticky: true, className: 'route-tooltip' });
+          }
+
+          // Добавляем подсветку пути при наведении на видео-маркер
+          marker.on('mouseover', () => {
+            if (vRouteId) onRouteHover?.(vRouteId);
+          });
+          marker.on('mouseout', () => {
+            if (vRouteId) onRouteHover?.(null);
+          });
+
+          marker.on('click', () => {
+            navigate(`/video/${videoData.users?.login || 'user'}/${videoData.id}`);
+          });
+          videoMarkersRef.current.push(marker);
         }
 
-        marker.on('click', () => {
-          navigate(`/video/${video.users?.login || 'user'}/${video.id}`);
-        });
-        marker.on('mouseover', () => {
-          if (vRouteId) onRouteHover?.(vRouteId);
-        });
-        marker.on('mouseout', () => {
-          if (vRouteId) onRouteHover?.(null);
-        });
-
         marker.addTo(map);
-        videoMarkersRef.current.push(marker);
+        videoClusterGroupRef.current.push(marker);
       } catch (e) {
-        console.error('[LeafletMap] Error adding video marker:', e);
+        console.error('[LeafletMap] Error adding marker:', e);
       }
     });
 
     return () => {
-      videoMarkersRef.current.forEach(m => m.remove());
+      if (videoClusterGroupRef.current) {
+        videoClusterGroupRef.current.forEach(m => m.remove());
+        videoClusterGroupRef.current = [];
+      }
       videoMarkersRef.current = [];
     };
-  }, [map, videos, highlightedVideoId, navigate, mode, showVideos, onRouteHover, props.allRoutes]);
+  }, [map, videos, clusters, highlightedVideoId, navigate, mode, showVideos]);
 
-// ─── Маркеры и линии маршрута ─────────────────────────────────────────
+  // ─── Маркеры и линии маршрута ─────────────────────────────────────────
   useEffect(() => {
     if (!map || (mode !== 'route-editor' && mode !== 'route-viewer' && mode !== 'point-selector' && mode !== 'videos')) return;
 
@@ -255,54 +359,59 @@ export function LeafletMap({
         const transportColor = getTransportOption(transportType).color;
         const stopTypeLabel = pointData.stop_type ? (STOP_TYPE_MAP[pointData.stop_type]?.label || '') : '';
         const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
-        
-        const icon = createRoutePointIcon(pointData, isStart, transportColor, stopTypeLabel);
-        const [lng, lat] = coords;
-        const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
-        const marker = L.marker([lat, lng], {
-          icon,
-          draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
-          opacity,
-          routeId: route.id // Сохраняем ID для обновления
-        });
 
-        if (mode === 'route-editor' && index !== 0) {
-          marker.on('click', (e) => {
-            e.originalEvent?.stopPropagation();
-            onPointClickRef.current?.(index);
+        const stopType = pointData.stop_type;
+        const isMilestone = isStart || (stopType && stopType !== 'none');
+
+        if (isMilestone && showMilestones) {
+          const icon = createRoutePointIcon(pointData, isStart, transportColor, stopTypeLabel);
+          const [lng, lat] = coords;
+          const opacity = (!hoveredRouteId || isCurrentHovered) ? 1 : 0.3;
+          const marker = L.marker([lat, lng], {
+            icon,
+            draggable: mode === 'route-editor' && !!onPointDragEndRef.current,
+            opacity,
+            routeId: route.id // Сохраняем ID для обновления
           });
-        } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
-          marker.on('click', (e) => {
-            if (mode === 'point-selector') {
-              const { lat, lng } = e.latlng;
-              onMapClick?.([lng, lat]);
-              return;
-            }
-            L.DomEvent.stopPropagation(e);
-            if (route.id) onRouteClick?.(route.id);
+
+          if (mode === 'route-editor' && index !== 0) {
+            marker.on('click', (e) => {
+              e.originalEvent?.stopPropagation();
+              onPointClickRef.current?.(index);
+            });
+          } else if (mode === 'videos' || mode === 'route-viewer' || mode === 'point-selector') {
+            marker.on('click', (e) => {
+              if (mode === 'point-selector') {
+                const { lat, lng } = e.latlng;
+                onMapClick?.([lng, lat]);
+                return;
+              }
+              L.DomEvent.stopPropagation(e);
+              if (route.id) onRouteClick?.(route.id);
+            });
+          }
+
+          if (mode === 'route-editor' && onPointDragEndRef.current) {
+            marker.on('dragend', (e) => {
+              const pos = e.target.getLatLng();
+              onPointDragEndRef.current(index, [pos.lng, pos.lat]);
+            });
+          }
+
+          if (route.title) {
+            marker.bindTooltip(route.title, { sticky: true, className: 'route-tooltip' });
+          }
+
+          marker.on('mouseover', () => {
+            onRouteHover?.(route.id);
           });
-        }
-
-        if (mode === 'route-editor' && onPointDragEndRef.current) {
-          marker.on('dragend', (e) => {
-            const pos = e.target.getLatLng();
-            onPointDragEndRef.current(index, [pos.lng, pos.lat]);
+          marker.on('mouseout', () => {
+            onRouteHover?.(null);
           });
+
+          marker.addTo(map);
+          routeLayersRef.current.markers.push(marker);
         }
-
-        if (route.title) {
-          marker.bindTooltip(route.title, { sticky: true, className: 'route-tooltip' });
-        }
-
-        marker.on('mouseover', () => {
-          onRouteHover?.(route.id);
-        });
-        marker.on('mouseout', () => {
-          onRouteHover?.(null);
-        });
-
-        marker.addTo(map);
-        routeLayersRef.current.markers.push(marker);
 
         if (index > 0) {
           const prevCoords = Array.isArray(points[index - 1]) ? points[index - 1] : points[index - 1].coords;
@@ -310,10 +419,10 @@ export function LeafletMap({
           const isCurrentHovered = hoveredRouteId && route.id && String(route.id) === String(hoveredRouteId);
           const polylineOpacity = (!hoveredRouteId || isCurrentHovered) ? 0.85 : 0.2;
           const polylineWeight = isCurrentHovered ? 6 : 4;
-          
+
           const polyline = L.polyline([toLeafletLatLng(prevCoords), toLeafletLatLng(coords)], {
-            color, 
-            weight: polylineWeight, 
+            color,
+            weight: polylineWeight,
             opacity: polylineOpacity,
             routeId: route.id // Сохраняем ID для обновления
           });
@@ -344,22 +453,6 @@ export function LeafletMap({
         }
       });
     });
-
-    if ((mode === 'route-viewer' || mode === 'point-selector') && routesToRender.length > 0) {
-      const allCoords = [];
-      routesToRender.forEach(r => {
-        const points = r.path_data || [];
-        points.forEach(p => {
-          const coords = Array.isArray(p) ? p : p?.coords;
-          if (coords) allCoords.push(coords);
-        });
-      });
-      
-      const bounds = getBoundsFromCoords(allCoords);
-      if (bounds) {
-        map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
-      }
-    }
 
     // Попап выбора типа остановки (только для режима редактора)
     if (mode === 'route-editor') {
@@ -410,7 +503,37 @@ export function LeafletMap({
         popupMarkerRef.current = null;
       }
     };
-  }, [map, routes, props.routePoints, mode, activePointIndex, showPath, onRouteHover, onRouteClick]);
+  }, [map, routes, props.routePoints, mode, activePointIndex, showPath, showMilestones, onRouteHover, onRouteClick]);
+
+  // ─── Центрирование карты (fitBounds) ──────────────────────────────────
+  useEffect(() => {
+    if (!map || (mode !== 'route-viewer' && mode !== 'point-selector')) return;
+
+    // Центрируем только если изменился маршрут или был нажат сброс
+    const routeChanged = routeId !== lastCenteredRouteIdRef.current;
+    const resetPressed = resetKey !== lastResetKeyRef.current;
+
+    if (!routeChanged && !resetPressed) return;
+
+    const routesToRender = routes.length > 0 ? routes : (props.routePoints ? [{ path_data: props.routePoints }] : []);
+    if (routesToRender.length === 0) return;
+
+    const allCoords = [];
+    routesToRender.forEach(r => {
+      const points = r.path_data || [];
+      points.forEach(p => {
+        const coords = Array.isArray(p) ? p : p?.coords;
+        if (coords) allCoords.push(coords);
+      });
+    });
+
+    const bounds = getBoundsFromCoords(allCoords);
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [40, 40], animate: true, duration: 1 });
+      lastCenteredRouteIdRef.current = routeId;
+      lastResetKeyRef.current = resetKey;
+    }
+  }, [map, routes, resetKey, mode, routeId, props.routePoints]);
 
   // Эффект для плавного обновления прозрачности при наведении
   useEffect(() => {
@@ -444,7 +567,7 @@ export function LeafletMap({
     });
   }, [hoveredRouteId, map]);
 
-// ─── Маркер выбранной точки (point-selector) ──────────────────────────
+  // ─── Маркер выбранной точки (point-selector) ──────────────────────────
   useEffect(() => {
     if (!map || mode !== 'point-selector') return;
 
@@ -484,8 +607,8 @@ export function LeafletMap({
     };
   }, [map, mode, selectedPoint]);
 
-// ─── Debounced загрузка видео по координатам ──────────────────────────
-const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
+  // ─── Debounced загрузка видео по координатам ──────────────────────────
+  const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
 
   useEffect(() => {
     if (!map || mode !== 'videos' || disableFetchOnMove) return;
@@ -510,7 +633,7 @@ const debouncedCenter = useDebounce(mapCenter, DEBOUNCE_DELAY);
   const refreshVideosRef = useRef(null);
 
   return (
-    <div className="map-wrapper" style={{ height: '100%' }}>
+    <div className="map-wrapper" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, height: '100%', width: '100%', margin: 0, boxShadow: 'none', borderRadius: 0 }}>
       <div ref={mapContainerRef} className="map-container" style={{ height: '100%' }} />
     </div>
   );

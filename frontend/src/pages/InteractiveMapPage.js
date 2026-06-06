@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../utils/constants';
+import { api } from '../api';
 import { Map } from '../components/Map';
 import { useYandexMaps } from '../hooks/useYandexMaps';
 import { useMapProvider } from '../hooks/useMapProvider';
 import { useVideos } from '../hooks/useVideos';
 import { TRANSPORT_OPTIONS } from '../utils/routeConstants';
+import {
+  formatDuration,
+  getSnappedTime,
+  calculateTotalDistance,
+  calculateTotalDuration
+} from '../utils/routeHelpers';
+import { useRouteFilters } from '../hooks/useRouteFilters';
+import { RouteSearchPanel } from '../components/Route/RouteSearchPanel';
 import '../styles/interactiveMapPage.css';
 
 // CSS fix for focus outline on map elements
@@ -20,34 +29,13 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-/**
- * Хелпер для расчета дистанции маршрута (в км)
- */
-const calculateRouteDistance = (pathData) => {
-  if (!pathData || pathData.length < 2) return 0;
-  const R = 6371; // Радиус Земли в км
-  let total = 0;
-  for (let i = 1; i < pathData.length; i++) {
-    const p1 = Array.isArray(pathData[i - 1]) ? pathData[i - 1] : pathData[i - 1].coords;
-    const p2 = Array.isArray(pathData[i]) ? pathData[i] : pathData[i].coords;
-    if (!p1 || !p2) continue;
-    const dLat = (p2[1] - p1[1]) * Math.PI / 180;
-    const dLon = (p2[0] - p1[0]) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(p1[1] * Math.PI / 180) * Math.cos(p2[1] * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    total += R * c;
-  }
-  return total;
-};
 
-import { MapPageSkeleton } from '../components/Skeletons/MapPageSkeleton';
+import { InteractiveMapSkeleton } from '../components/Skeletons/MapPageSkeleton';
 
 export const InteractiveMapPage = ({ user }) => {
   const navigate = useNavigate();
   const { provider } = useMapProvider();
-  const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
+  const { ymapsReady, loadError } = useYandexMaps(true); // Загружаем в фоне всегда
   const { videos, fetchVideos, loading: videosLoading } = useVideos();
 
   const [routes, setRoutes] = useState([]);
@@ -56,33 +44,51 @@ export const InteractiveMapPage = ({ user }) => {
 
   // Фильтры маршрутов
   const [showRoutes, setShowRoutes] = useState(true);
-  const [routeSearch, setRouteSearch] = useState('');
-  const [selectedTransports, setSelectedTransports] = useState(TRANSPORT_OPTIONS.map(o => o.value));
-  const [distanceRange, setDistanceRange] = useState('all'); // all, short, medium, long
+  const [maxAvailableDistance, setMaxAvailableDistance] = useState(50);
+  const [maxAvailableTime, setMaxAvailableTime] = useState(180);
+
+  const {
+    filters,
+    draftFilters,
+    updateFilter,
+    applyFilters,
+    resetFilters
+  } = useRouteFilters(maxAvailableDistance, maxAvailableTime);
 
   // Фильтры видео
   const [showVideos, setShowVideos] = useState(true);
-  const [videoFilterMode, setVideoFilterMode] = useState('all'); // all, by_route
+  const [videoFilterMode, setVideoFilterMode] = useState('by_route'); // all, by_route
   const [hoveredRouteId, setHoveredRouteId] = useState(null);
+  const [showMilestones, setShowMilestones] = useState(true);
 
   // Список выбранных маршрутов
   const [selectedRouteIds, setSelectedRouteIds] = useState(new Set());
   const [routeListPage, setRouteListPage] = useState(1);
   const ROUTES_PER_PAGE = 5;
 
-  // Загрузка маршрутов
+  // Загрузка маршрутов с учетом фильтров (серверная фильтрация)
   useEffect(() => {
-    const loadRoutes = async () => {
+    const loadFilteredRoutes = async () => {
+      setRoutesLoading(true);
       try {
-        const res = await fetch(`${API_URL}/routes`);
-        if (res.ok) {
-          const data = await res.json();
-          // Добавляем рассчитанную дистанцию к каждому маршруту для быстрой фильтрации
-          const routesWithDist = data.map(r => ({
-            ...r,
-            calculatedDistance: calculateRouteDistance(r.path_data)
-          }));
-          setRoutes(routesWithDist);
+        const data = await api.searchRoutes({ ...filters, onlyWithPaths: true });
+
+        // Добавляем рассчитанную дистанцию и время к каждому маршруту (если сервер их еще не прислал)
+        const routesWithStats = data.map(r => ({
+          ...r,
+          calculatedDistance: r.calculatedDistance || calculateTotalDistance(r.path_data),
+          calculatedDuration: r.calculatedDuration || calculateTotalDuration(r.path_data)
+        }));
+
+        setRoutes(routesWithStats);
+
+        // Обновляем максимумы только при первой загрузке (если нужно)
+        if (!configLoaded && routesWithStats.length > 0) {
+          const maxDist = Math.ceil(Math.max(...routesWithStats.map(r => r.calculatedDistance), 5));
+          const maxDur = Math.ceil(Math.max(...routesWithStats.map(r => r.calculatedDuration), 30));
+          setMaxAvailableDistance(maxDist);
+          setMaxAvailableTime(maxDur);
+          setConfigLoaded(true);
         }
       } catch (err) {
         console.error('Error loading routes:', err);
@@ -90,41 +96,28 @@ export const InteractiveMapPage = ({ user }) => {
         setRoutesLoading(false);
       }
     };
-    loadRoutes();
-  }, []);
+
+    loadFilteredRoutes();
+  }, [filters, configLoaded]);
 
   // Первоначальная загрузка видео
   useEffect(() => {
     fetchVideos(null, null);
-    setConfigLoaded(true);
   }, [fetchVideos]);
 
   const availableRoutes = useMemo(() => {
-    return routes.filter(route => {
-      const matchesSearch = route.title.toLowerCase().includes(routeSearch.toLowerCase());
-
-      const routeTransports = route.path_data
-        ? [...new Set(route.path_data.map(p => p.transport).filter(Boolean))]
-        : [];
-      const matchesTransport = routeTransports.length === 0
-        ? selectedTransports.includes('walking')
-        : routeTransports.some(t => selectedTransports.includes(t));
-
-      const dist = route.calculatedDistance;
-      let matchesDistance = true;
-      if (distanceRange === 'short') matchesDistance = dist < 5;
-      else if (distanceRange === 'medium') matchesDistance = dist >= 5 && dist <= 15;
-      else if (distanceRange === 'long') matchesDistance = dist > 15;
-
-      const hasPath = route.path_data && route.path_data.length > 0;
-      return matchesSearch && matchesTransport && matchesDistance && hasPath;
+    // Дополнительные клиентские фильтры, которых может не быть в API (напр. транспорт)
+    return routes.filter(r => {
+      const routeTransports = r.path_data ? r.path_data.map(p => p.transport || 'walking') : ['walking'];
+      const matchesTransport = routeTransports.some(t => filters.transports.includes(t));
+      return matchesTransport;
     });
-  }, [routes, routeSearch, selectedTransports, distanceRange]);
+  }, [routes, filters.transports]);
 
   // Сброс страницы при изменении фильтров
   useEffect(() => {
     setRouteListPage(1);
-  }, [routeSearch, selectedTransports, distanceRange]);
+  }, [availableRoutes]);
 
   // Маршруты, которые реально отображаются на карте
   const mapRoutes = useMemo(() => {
@@ -144,11 +137,32 @@ export const InteractiveMapPage = ({ user }) => {
     });
   }, [videos, showVideos, videoFilterMode, selectedRouteIds]);
 
-  const handleTransportToggle = useCallback((value) => {
-    setSelectedTransports(prev =>
-      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
-    );
-  }, []);
+  const isDraftDirty = useMemo(() => {
+    return JSON.stringify(filters) !== JSON.stringify(draftFilters);
+  }, [filters, draftFilters]);
+
+  const isFilterActive = useMemo(() => {
+    return filters.sortBy !== 'popular' || // В карте по умолчанию popular
+      filters.searchQuery !== '' ||
+      filters.useDistance ||
+      filters.useDuration ||
+      (filters.transports && filters.transports.length < TRANSPORT_OPTIONS.length);
+  }, [filters, maxAvailableDistance, maxAvailableTime]);
+
+  const searchPanelProps = {
+    filters,
+    draftFilters,
+    updateFilter,
+    applyFilters,
+    resetFilters,
+    maxAvailableDistance,
+    maxAvailableDuration: maxAvailableTime,
+    user,
+    isDraftDirty,
+    isFilterActive,
+    showGuide: false, // На карте пока не фильтруем по гиду в поиске
+    showAdvanced: false // Скрываем "скрыть пройденные" для карты
+  };
 
   const handleRouteToggle = useCallback((id) => {
     setSelectedRouteIds(prev => {
@@ -170,17 +184,10 @@ export const InteractiveMapPage = ({ user }) => {
 
   const totalPages = Math.ceil(availableRoutes.length / ROUTES_PER_PAGE);
 
-  if (routesLoading) return <MapPageSkeleton />;
+  if (routesLoading) return <InteractiveMapSkeleton />;
 
   return (
     <div className="interactive-map-page-v2">
-      <div className="map-page-header">
-        <div className="header-info">
-          <h1>Интерактивная карта</h1>
-          <p>На карте: {mapRoutes.length} маршрутов, {filteredVideos.length} видео</p>
-        </div>
-      </div>
-
       <div className="map-page-main">
         <div className="map-container-wrapper">
           <Map
@@ -189,7 +196,7 @@ export const InteractiveMapPage = ({ user }) => {
             routes={mapRoutes}
             allRoutes={routes}
             fetchVideos={fetchVideos}
-            disableFetchOnMove={true}
+            disableFetchOnMove={false}
             ymapsReady={ymapsReady}
             loadError={loadError}
             configLoaded={configLoaded}
@@ -197,12 +204,10 @@ export const InteractiveMapPage = ({ user }) => {
             hoveredRouteId={hoveredRouteId}
             onRouteHover={setHoveredRouteId}
             onRouteClick={handleRouteClick}
+            showMilestones={showMilestones}
+            showVideos={showVideos}
+            videoFilterMode={videoFilterMode}
           />
-          {!user && (
-            <div className="login-prompt">
-              <p>Войдите через Яндекс, чтобы загружать видео на карту</p>
-            </div>
-          )}
         </div>
 
         <div className="map-sidebar">
@@ -211,147 +216,85 @@ export const InteractiveMapPage = ({ user }) => {
 
             {/* Секция маршрутов */}
             <div className="filter-section">
-              <div className="filter-section-title">
+              <div className="filter-section-title filter-section-title--active">
                 <span>Маршруты</span>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={showRoutes}
-                    onChange={(e) => setShowRoutes(e.target.checked)}
-                  />
-                  <span className="slider round"></span>
-                </label>
               </div>
 
-              {showRoutes && (
-                <div className="filter-controls">
-                  <div className="filter-group">
-                    <label>Поиск по названию</label>
-                    <input
-                      type="text"
-                      placeholder="Название..."
-                      value={routeSearch}
-                      onChange={(e) => setRouteSearch(e.target.value)}
-                      className="filter-input"
-                    />
-                  </div>
-
-                  <div className="filter-group">
-                    <label>Транспорт</label>
-                    <div className="checkbox-grid">
-                      {TRANSPORT_OPTIONS.map(opt => (
-                        <label key={opt.value} className="checkbox-item">
-                          <input
-                            type="checkbox"
-                            checked={selectedTransports.includes(opt.value)}
-                            onChange={() => handleTransportToggle(opt.value)}
-                          />
-                          <span>{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="filter-group">
-                    <label>Добавить на карту</label>
-                    <div className="route-selection-list">
-                      {paginatedAvailableRoutes.length === 0 ? (
-                        <div className="no-routes">Нет маршрутов</div>
-                      ) : (
-                        paginatedAvailableRoutes.map(r => (
-                          <label 
-                            key={r.id} 
-                            className="route-list-item"
-                            onMouseEnter={() => setHoveredRouteId(r.id)}
-                            onMouseLeave={() => setHoveredRouteId(null)}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedRouteIds.has(r.id)}
-                              onChange={() => handleRouteToggle(r.id)}
-                            />
-                            <div className="route-item-info">
-                              <span className="route-item-title">{r.title}</span>
-                              <span className="route-item-dist">{r.calculatedDistance.toFixed(1)} км</span>
-                            </div>
-                          </label>
-                        ))
+              <div className="filter-controls">
+                <RouteSearchPanel
+                  {...searchPanelProps}
+                  showSort={false}
+                  showMilestonesToggle={true}
+                  showMilestones={showMilestones}
+                  onMilestonesToggle={setShowMilestones}
+                  showVideosToggle={true}
+                  showVideos={showVideos}
+                  videoFilterMode={videoFilterMode}
+                  onVideoModeChange={(show, mode) => {
+                    setShowVideos(show);
+                    setVideoFilterMode(mode);
+                  }}
+                  mapAdditions={(
+                    <div className="filter-group">
+                      <label>Добавить на карту</label>
+                      <div className="route-selection-list">
+                        {paginatedAvailableRoutes.length === 0 ? (
+                          <div className="no-routes">Нет маршрутов</div>
+                        ) : (
+                          paginatedAvailableRoutes.map(r => (
+                            <label
+                              key={r.id}
+                              className="route-list-item"
+                              onMouseEnter={() => setHoveredRouteId(r.id)}
+                              onMouseLeave={() => setHoveredRouteId(null)}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedRouteIds.has(r.id)}
+                                onChange={() => handleRouteToggle(r.id)}
+                              />
+                              <div className="route-item-info">
+                                <span className="route-item-title">{r.title}</span>
+                                <div className="route-item-stats">
+                                  <span className="route-item-dist">{r.calculatedDistance.toFixed(1)} км</span>
+                                  <span className="route-item-dur">
+                                    {formatDuration(r.calculatedDuration)}
+                                  </span>
+                                </div>
+                              </div>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="pagination-controls">
+                          <div className="page-btn-placeholder">
+                            {routeListPage > 1 && (
+                              <button
+                                onClick={() => setRouteListPage(p => p - 1)}
+                                className="page-btn"
+                              >
+                                &lt;
+                              </button>
+                            )}
+                          </div>
+                          <span>{routeListPage} / {totalPages}</span>
+                          <div className="page-btn-placeholder">
+                            {routeListPage < totalPages && (
+                              <button
+                                onClick={() => setRouteListPage(p => p + 1)}
+                                className="page-btn"
+                              >
+                                &gt;
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-                    {totalPages > 1 && (
-                      <div className="pagination-controls">
-                        <div className="page-btn-placeholder">
-                          {routeListPage > 1 && (
-                            <button
-                              onClick={() => setRouteListPage(p => p - 1)}
-                              className="page-btn"
-                            >
-                              &lt;
-                            </button>
-                          )}
-                        </div>
-                        <span>{routeListPage} / {totalPages}</span>
-                        <div className="page-btn-placeholder">
-                          {routeListPage < totalPages && (
-                            <button
-                              onClick={() => setRouteListPage(p => p + 1)}
-                              className="page-btn"
-                            >
-                              &gt;
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Секция видео */}
-            <div className="filter-section">
-              <div className="filter-section-title">
-                <span>Видео маркеры</span>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={showVideos}
-                    onChange={(e) => setShowVideos(e.target.checked)}
-                  />
-                  <span className="slider round"></span>
-                </label>
+                  )}
+                />
               </div>
-
-              {showVideos && (
-                <div className="filter-controls">
-
-                  <div className="filter-group">
-                    <label>Отображение</label>
-                    <div className="radio-group">
-                      <label className="radio-item">
-                        <input
-                          type="radio"
-                          name="videoFilter"
-                          value="all"
-                          checked={videoFilterMode === 'all'}
-                          onChange={() => setVideoFilterMode('all')}
-                        />
-                        <span>Все видео</span>
-                      </label>
-                      <label className="radio-item">
-                        <input
-                          type="radio"
-                          name="videoFilter"
-                          value="by_route"
-                          checked={videoFilterMode === 'by_route'}
-                          onChange={() => setVideoFilterMode('by_route')}
-                        />
-                        <span>Только по выбранным маршрутам</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
           </div>

@@ -4,15 +4,16 @@ import CommentItem from './CommentItem';
 /**
  * Секция комментариев с вкладками отзывов и вопросов, формами добавления и списком
  */
-const RouteCommentsSection = memo(({ 
-  comments, 
-  currentUserId, 
-  isGuide, 
+const RouteCommentsSection = memo(({
+  comments,
+  currentUserId,
+  isGuide,
   routeGuideId,
-  onAdd, 
-  onReply, 
-  onEdit, 
-  onDelete 
+  hasCompletedRoute,
+  onAdd,
+  onReply,
+  onEdit,
+  onDelete
 }) => {
   const [commentType, setCommentType] = useState('review');
   const [showCommentForm, setShowCommentForm] = useState(false);
@@ -98,6 +99,8 @@ const RouteCommentsSection = memo(({
             className="btn btn--primary btn--small"
             onClick={handleToggleMainForm}
             style={{ marginLeft: 'auto', marginBottom: '8px' }}
+            disabled={commentType === 'review' && !hasCompletedRoute}
+            title={commentType === 'review' && !hasCompletedRoute ? 'Оставлять отзывы могут только пользователи, прошедшие маршрут' : ''}
           >
             {showCommentForm ? 'Отмена' : 'Написать'}
           </button>
@@ -128,11 +131,7 @@ const RouteCommentsSection = memo(({
             </button>
           </form>
         )
-      ) : (
-        <div className="login-prompt">
-          <p>Пожалуйста, войдите в систему, чтобы оставлять комментарии.</p>
-        </div>
-      )}
+      ) : (null)}
 
       <div className="comments-list">
         {comments

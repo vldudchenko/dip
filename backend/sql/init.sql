@@ -84,6 +84,7 @@ CREATE TABLE public.routes (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   path_data jsonb,
+  geom USER-DEFINED,
   CONSTRAINT routes_pkey PRIMARY KEY (id),
   CONSTRAINT routes_guide_id_fkey FOREIGN KEY (guide_id) REFERENCES public.users(id)
 );
@@ -96,12 +97,19 @@ CREATE TABLE public.session_participants (
   CONSTRAINT session_participants_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.route_sessions(id),
   CONSTRAINT session_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.spatial_ref_sys (
+  srid integer NOT NULL CHECK (srid > 0 AND srid <= 998999),
+  auth_name character varying,
+  auth_srid integer,
+  srtext character varying,
+  proj4text character varying,
+  CONSTRAINT spatial_ref_sys_pkey PRIMARY KEY (srid)
+);
 CREATE TABLE public.users (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   yandex_id text NOT NULL UNIQUE,
   email text,
   login text,
-  full_name text,
   avatar text,
   access_token text,
   refresh_token text,
@@ -109,6 +117,7 @@ CREATE TABLE public.users (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   is_guide boolean NOT NULL DEFAULT false,
+  full_name text,
   CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.videos (
@@ -119,14 +128,9 @@ CREATE TABLE public.videos (
   longitude numeric,
   original_name text,
   created_at timestamp with time zone DEFAULT now(),
-  is_live boolean DEFAULT false,
-  route_start_lat numeric,
-  route_start_lng numeric,
-  route_end_lat numeric,
-  route_end_lng numeric,
-  route_geometry jsonb,
-  video_duration integer,
   route_id uuid,
+  status text DEFAULT 'ready'::text CHECK (status = ANY (ARRAY['processing'::text, 'ready'::text, 'error'::text])),
+  poster_url text,
   CONSTRAINT videos_pkey PRIMARY KEY (id),
   CONSTRAINT videos_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT videos_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id)
@@ -140,3 +144,23 @@ CREATE TABLE public.views (
   CONSTRAINT views_video_id_fkey FOREIGN KEY (video_id) REFERENCES public.videos(id),
   CONSTRAINT views_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+
+-- ИНДЕКСЫ ДЛЯ ОПТИМИЗАЦИИ --
+
+-- Пространственный индекс для маршрутов
+CREATE INDEX idx_routes_geom ON public.routes USING GIST(geom);
+
+-- Индексы для внешних ключей (ускорение JOIN и фильтрации)
+CREATE INDEX idx_comments_video_id ON public.comments(video_id);
+CREATE INDEX idx_comments_user_id ON public.comments(user_id);
+CREATE INDEX idx_route_comments_route_id ON public.route_comments(route_id);
+CREATE INDEX idx_videos_route_id ON public.videos(route_id);
+CREATE INDEX idx_videos_user_id ON public.videos(user_id);
+CREATE INDEX idx_route_sessions_route_id ON public.route_sessions(route_id);
+CREATE INDEX idx_likes_video_id ON public.likes(video_id);
+CREATE INDEX idx_views_video_id ON public.views(video_id);
+
+-- Уникальные ограничения для предотвращения дублей
+ALTER TABLE public.likes ADD CONSTRAINT unique_user_video_like UNIQUE (user_id, video_id);
+ALTER TABLE public.views ADD CONSTRAINT unique_user_video_view UNIQUE (user_id, video_id);
+ALTER TABLE public.route_views ADD CONSTRAINT unique_user_route_view UNIQUE (user_id, route_id);

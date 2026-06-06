@@ -1,4 +1,6 @@
 import { userService } from '../services/user.js';
+import jwt from 'jsonwebtoken';
+import { config } from '../config/index.js';
 
 /**
  * Middleware для обработки ошибок
@@ -20,37 +22,85 @@ export const errorHandler = (err, req, res, next) => {
 };
 
 /**
+ * Вспомогательная функция для извлечения и проверки токена
+ */
+export const verifyToken = (req) => {
+  let token = req.cookies?.token;
+  
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  if (!token) {
+    throw { status: 401, message: 'Требуется авторизация (отсутствует токен)' };
+  }
+
+  try {
+    return jwt.verify(token, config.jwtSecret);
+  } catch (error) {
+    throw { status: 401, message: 'Неверный или просроченный токен' };
+  }
+};
+
+/**
  * Middleware для проверки авторизации
  */
 export const requireAuth = (req, res, next) => {
-  const userId = req.headers['user-id'] || req.body.userId || req.query.userId;
-
-  if (!userId) {
-    return res.status(401).json({ error: 'Требуется авторизация' });
+  try {
+    const decoded = verifyToken(req);
+    req.user = decoded; // { userId, is_guide }
+    
+    // Безопасность: ВСЕГДА используем userId из токена, перекрывая данные из body
+    req.body.userId = decoded.userId;
+    
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({ error: error.message });
   }
-
-  next();
 };
 
 /**
  * Middleware для проверки статуса гида
  */
 export const requireGuide = async (req, res, next) => {
-  const userId = req.headers['user-id'] || req.body.userId || req.query.userId;
-
-  if (!userId) {
-    return res.status(401).json({ error: 'Требуется авторизация' });
-  }
-
   try {
-    const user = await userService.getUserById(userId);
-    if (!user || !user.is_guide) {
-      return res.status(403).json({ error: 'У вас нет прав гида для выполнения этого действия' });
+    const decoded = verifyToken(req);
+    req.user = decoded;
+    
+    // Безопасность: ВСЕГДА используем userId из токена
+    req.body.userId = decoded.userId;
+
+    if (!decoded.is_guide) {
+      // Проверка в БД для актуальности данных (на случай депортации гида)
+      const user = await userService.getUserById(decoded.userId);
+      if (!user || !user.is_guide) {
+        return res.status(403).json({ error: 'У вас нет прав гида для выполнения этого действия' });
+      }
     }
+    
     next();
   } catch (error) {
-    res.status(500).json({ error: 'Ошибка проверки прав доступа' });
+    return res.status(error.status || 401).json({ error: error.message });
   }
 };
 
-export default { errorHandler, requireAuth, requireGuide };
+/**
+ * Middleware для мягкой проверки авторизации.
+ * Если кука есть — записывает userId из токена.
+ * Если нет — оставляет userId из req.body без ошибки.
+ */
+export const optionalAuth = (req, res, next) => {
+  try {
+    const decoded = verifyToken(req);
+    req.user = decoded;
+    req.body.userId = decoded.userId;
+  } catch (_) {
+    // Не блокируем запрос — userId остаётся тем, что пришло в body
+  }
+  next();
+};
+
+export default { errorHandler, requireAuth, requireGuide, optionalAuth };

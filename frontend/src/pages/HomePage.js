@@ -1,104 +1,203 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { API_URL } from '../utils/constants';
 import { api } from '../api';
 import { RouteCard } from '../components/RouteCard';
 import { SkeletonCard } from '../components/Skeletons/SkeletonCard';
+import { DualRangeSlider } from '../components/common/DualRangeSlider';
+import { GuideSelectionPanel } from '../components/common/GuideSelectionPanel';
+import { useRouteFilters } from '../hooks/useRouteFilters';
+import { useFilteredRoutes } from '../hooks/useFilteredRoutes';
+import { useGuideSelection } from '../hooks/useGuideSelection';
+import { formatDuration, calculateTotalDistance, calculateTotalDuration, getSnappedTime } from '../utils/routeHelpers';
+import { TRANSPORT_OPTIONS } from '../utils/routeConstants';
+import { RouteSearchPanel } from '../components/Route/RouteSearchPanel';
 import '../styles/homePage.css';
 
 /**
  * Главная страница
- * Отображает список всех маршрутов
+ * Отображает список всех маршрутов с расширенной фильтрацией и Hero-секцией
  */
-export const HomePage = () => {
+export const HomePage = ({ user }) => {
   const [routes, setRoutes] = useState([]);
   const [guides, setGuides] = useState({});
+  const [userSessions, setUserSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  const routesSectionRef = useRef(null);
+
+  // Состояние для динамических максимумов фильтров
+  const [maxAvailableDistance, setMaxAvailableDistance] = useState(5);
+  const [maxAvailableDuration, setMaxAvailableDuration] = useState(1440);
+
+  const { filters, draftFilters, updateFilter, applyFilters, resetFilters } = useRouteFilters(maxAvailableDistance, maxAvailableDuration);
+
+  // Загрузка данных
   useEffect(() => {
     let isMounted = true;
 
-    const fetchRoutes = async () => {
-      // Сбрасываем ошибку и ставим загрузку перед новым запросом
-      setError(null);
+    const fetchData = async () => {
       setLoading(true);
-
+      setError(null);
       try {
-        const response = await fetch(`${API_URL}/routes`);
-        if (!response.ok) {
-          throw new Error('Не удалось загрузить маршруты');
-        }
-        const data = await response.json();
-        
+        const [routesData, participantSessions, guideSessions] = await Promise.all([
+          api.fetchRoutes(),
+          user ? api.fetchUserSessions(user.id) : Promise.resolve([]),
+          (user && user.is_guide) ? api.fetchGuideSessions(user.id) : Promise.resolve([])
+        ]);
+
         if (!isMounted) return;
-        setRoutes(data);
+        setRoutes(routesData);
+        // Объединяем сессии, где пользователь участник и где он гид
+        setUserSessions([...participantSessions, ...guideSessions]);
 
-        // Загружаем информацию о гидах для каждого маршрута, используя кэшированный API
-        const guideIds = [...new Set(data.map(route => route.guide_id))];
-        const guidesData = {};
-
-        await Promise.all(
-          guideIds.map(async (guideId) => {
-            try {
-              // Используем api.fetchUser, который умеет кэшировать данные
-              const userData = await api.fetchUser(guideId);
-              if (userData && isMounted) {
-                guidesData[guideId] = userData;
-              }
-            } catch (err) {
-              console.error(`Не удалось загрузить гида ${guideId}:`, err);
-            }
-          })
-        );
-
-        if (isMounted) {
-          setGuides(prev => ({ ...prev, ...guidesData }));
+        // Рассчитываем максимумы для фильтров
+        if (routesData.length > 0) {
+          const distances = routesData.map(r => r.calculatedDistance || 0);
+          const durations = routesData.map(r => r.calculatedDuration || 0);
+          setMaxAvailableDistance(Math.ceil(Math.max(...distances, 5)));
+          setMaxAvailableDuration(Math.ceil(Math.max(...durations, 30)));
         }
+
+        // Загрузка данных гидов (авторов маршрутов)
+        const guideIds = [...new Set(routesData.map(r => r.guide_id))];
+        const guidesMap = {};
+
+        await Promise.all(guideIds.map(async (id) => {
+          try {
+            const g = await api.fetchUser(id);
+            if (g && isMounted) guidesMap[id] = g;
+          } catch (err) {
+            console.error(`Error loading guide ${id}:`, err);
+          }
+        }));
+
+        if (isMounted) setGuides(guidesMap);
       } catch (err) {
-        if (isMounted) {
-          setError(err.message);
-        }
+        if (isMounted) setError(err.message);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchRoutes();
+    fetchData();
+    return () => { isMounted = false; };
+  }, [user]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // Список уникальных гидов для панели выбора
+  const uniqueGuides = useMemo(() => {
+    return Object.values(guides).sort((a, b) =>
+      (a.full_name || a.login).localeCompare(b.full_name || b.login)
+    );
+  }, [guides]);
+
+  // ID маршрутов, которые пользователь уже проходил (статус 'completed')
+  const userCompletedRouteIds = useMemo(() => {
+    return new Set(
+      userSessions
+        .filter(s => s.status === 'completed')
+        .map(s => s.route_id)
+    );
+  }, [userSessions]);
+
+  // Основная логика фильтрации и сортировки
+  const filteredRoutes = useFilteredRoutes(routes, filters, userCompletedRouteIds);
+
+  // Состояние выбора гида (поиск, пагинация)
+  const guideSelection = useGuideSelection(uniqueGuides);
+
+  const handleScrollToRoutes = () => {
+    routesSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const isFilterActive = useMemo(() => {
+    return filters.sortBy !== 'newest' ||
+      filters.selectedGuide !== 'all' ||
+      filters.searchQuery !== '' ||
+      filters.onlyActive ||
+      filters.onlyCompleted ||
+      filters.useDistance ||
+      filters.useDuration ||
+      (filters.transports && filters.transports.length < TRANSPORT_OPTIONS.length);
+  }, [filters, maxAvailableDistance, maxAvailableDuration]);
+
+  const isDraftDirty = useMemo(() => {
+    return JSON.stringify(filters) !== JSON.stringify(draftFilters);
+  }, [filters, draftFilters]);
+
+  const searchPanelProps = {
+    filters,
+    draftFilters,
+    updateFilter,
+    applyFilters,
+    resetFilters,
+    maxAvailableDistance,
+    maxAvailableDuration,
+    uniqueGuides,
+    guideSelection,
+    user,
+    isDraftDirty,
+    isFilterActive
+  };
 
   return (
     <div className="home-page">
-      {error && <div className="error-container" style={{ marginBottom: '1rem' }}>Ошибка: {error}</div>}
-      <div className="home-header">
-        <h1>Исследуйте новые горизонты</h1>
-        <h1>Загружайте свои впечетления от походов</h1>
+      <div className="home-content-layout" ref={routesSectionRef}>
+        {/* Спейсер для центрирования основного контента (только для десктопа) */}
+        <div className="filters-spacer"></div>
+
+        {/* Кнопка фильтров для мобильных устройств */}
+        <button
+          className="mobile-filter-btn"
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <span>Параметры поиска</span>
+          {isFilterActive && <span className="filter-dot"></span>}
+        </button>
+
+        <div className="routes-section">
+          {error && <div className="error-container">Ошибка: {error}</div>}
+
+          <div className="routes-grid">
+            {loading ? (
+              [...Array(9)].map((_, i) => <SkeletonCard key={i} />)
+            ) : filteredRoutes.length === 0 ? (
+              <div className="no-routes">
+                <p>Маршруты не найдены. Попробуйте смягчить условия поиска.</p>
+              </div>
+            ) : (
+              filteredRoutes.map((route) => (
+                <RouteCard
+                  key={route.id}
+                  route={route}
+                  guide={guides[route.guide_id]}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Сайдбар с фильтрами для десктопа */}
+        <aside className="filters-bar">
+          <RouteSearchPanel {...searchPanelProps} />
+        </aside>
       </div>
 
-      <div className="routes-grid skeleton-grid-fix">
-        {loading ? (
-          [...Array(6)].map((_, i) => (
-            <SkeletonCard key={i} />
-          ))
-        ) : routes.length === 0 ? (
-          <div className="no-routes">
-            <p>Пока нет доступных маршрутов</p>
+      {/* Drawer для мобильных фильтров */}
+      {isDrawerOpen && (
+        <div className="filters-drawer-overlay" onClick={() => setIsDrawerOpen(false)}>
+          <div className="filters-drawer-content" onClick={e => e.stopPropagation()}>
+            <div className="drawer-header">
+              <h3>Параметры</h3>
+              <button className="drawer-close-btn" onClick={() => setIsDrawerOpen(false)}>&times;</button>
+            </div>
+            <div className="drawer-body">
+              <RouteSearchPanel {...searchPanelProps} />
+            </div>
           </div>
-        ) : (
-          routes.map((route) => (
-            <RouteCard
-              key={route.id}
-              route={route}
-              guide={guides[route.guide_id]}
-            />
-          ))
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

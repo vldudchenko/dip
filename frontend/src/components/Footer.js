@@ -2,6 +2,10 @@ import React from 'react';
 import '../styles/Footer.css';
 
 export function Footer() {
+  const email = process.env.REACT_APP_EMAIL_ADDRESS || 'dudchenko.v.i.2.22@gmail.com';
+  const phone = process.env.REACT_APP_PHONE_NUMBER || '+7 (978) 568-75-89';
+  const cleanedPhone = phone.replace(/[^+\d]/g, '');
+
   return (
     <footer className="site-footer">
       <div className="footer-container">
@@ -21,7 +25,10 @@ export function Footer() {
             <p className="footer-district">(р-н Центральный)</p>
             <p className="footer-address">Учебный пер. 8</p>
             <p className="footer-phone">
-              <a href="tel:+79785687589">+7 (978) 568-75-89</a>
+              <a href={`tel:${cleanedPhone}`}>{phone}</a>
+            </p>
+            <p className="footer-email">
+              <a href={`mailto:${email}`}>{email}</a>
             </p>
           </div>
 

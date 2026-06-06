@@ -1,39 +1,26 @@
-import React, { useState, memo } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 
 /**
- * Заголовок маршрута с названием, описанием и режимом редактирования
+ * Заголовок маршрута с названием и описанием. 
+ * Переключается в режим редактирования внешним флагом isEditing.
  */
-const RouteHeader = memo(({ route, isGuide, onSave, saving, isCreating, onCancel }) => {
-  const [isEditing, setIsEditing] = useState(isCreating || false);
-  const [editTitle, setEditTitle] = useState(route?.title || '');
-  const [editDescription, setEditDescription] = useState(route?.description || '');
+const RouteHeader = memo(({
+  route,
+  isEditing,
+  draftTitle,
+  setDraftTitle,
+  draftDescription,
+  setDraftDescription
+}) => {
+  const textareaRef = useRef(null);
 
-  const handleStartEdit = () => {
-    setEditTitle(route.title);
-    setEditDescription(route.description || '');
-    setIsEditing(true);
-  };
-
-  const handleSave = async () => {
-    if (!editTitle.trim()) {
-      alert('Название не может быть пустым');
-      return;
+  // Автоподбор высоты textarea под контент
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
-    try {
-      await onSave(editTitle, editDescription);
-      setIsEditing(false);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const handleCancel = () => {
-    if (isCreating && onCancel) {
-      onCancel();
-    } else {
-      setIsEditing(false);
-    }
-  };
+  }, [draftDescription, isEditing]);
 
   if (isEditing) {
     return (
@@ -42,8 +29,8 @@ const RouteHeader = memo(({ route, isGuide, onSave, saving, isCreating, onCancel
           <div style={{ marginBottom: '15px' }}>
             <input
               type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
               placeholder="Название маршрута"
               maxLength={100}
               className="route-edit-input"
@@ -58,19 +45,20 @@ const RouteHeader = memo(({ route, isGuide, onSave, saving, isCreating, onCancel
                 color: '#333',
                 outline: 'none'
               }}
-              autoFocus={isCreating}
+              autoFocus
             />
             <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
-              {editTitle.length}/100
+              {draftTitle.length}/100
             </div>
           </div>
 
           <div>
             <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              placeholder="Краткое описание маршрута"
-              rows="4"
+              ref={textareaRef}
+              value={draftDescription}
+              onChange={(e) => setDraftDescription(e.target.value)}
+              placeholder="Описание маршрута"
+              rows="1"
               maxLength={1000}
               className="route-edit-input"
               style={{
@@ -79,25 +67,17 @@ const RouteHeader = memo(({ route, isGuide, onSave, saving, isCreating, onCancel
                 padding: '8px',
                 borderRadius: '8px',
                 border: '1px solid #e5e7eb',
-                resize: 'vertical',
+                resize: 'none',
                 fontFamily: 'inherit',
                 color: '#4b5563',
                 lineHeight: '1.5',
-                outline: 'none'
+                outline: 'none',
+                overflow: 'hidden'
               }}
             />
             <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
-              {editDescription.length}/1000
+              {draftDescription.length}/1000
             </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-            <button className="btn btn--primary btn--small" onClick={handleSave} disabled={saving}>
-              {saving ? 'Сохранение...' : (isCreating ? 'Создать' : 'Сохранить')}
-            </button>
-            <button className="btn btn--secondary btn--small" onClick={handleCancel}>
-              {isCreating ? 'Отмена' : 'Отмена'}
-            </button>
           </div>
         </div>
       </div>
@@ -107,23 +87,18 @@ const RouteHeader = memo(({ route, isGuide, onSave, saving, isCreating, onCancel
   return (
     <div className="route-detail-header">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ marginBottom: '10px', fontSize: '2rem', fontWeight: 'bold', color: '#333' }}>{route?.title}</h1>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ marginBottom: '10px', fontSize: '2rem', fontWeight: 'bold', color: '#333', wordBreak: 'break-word' }}>
+            {route?.title}
+          </h1>
           {route?.description && (
-            <div className="route-detail-description" style={{ marginBottom: '10px' }}>
-              <p style={{ fontSize: '1rem', color: '#4b5563', lineHeight: '1.5' }}>{route.description}</p>
+            <div className="route-detail-description" style={{ marginBottom: '10px', width: '100%' }}>
+              <p style={{ fontSize: '1rem', color: '#4b5563', lineHeight: '1.5', wordBreak: 'break-word' }}>
+                {route.description}
+              </p>
             </div>
           )}
         </div>
-        {isGuide && (
-          <button
-            className="btn btn--secondary btn--small"
-            onClick={handleStartEdit}
-            style={{ marginLeft: '20px' }}
-          >
-            Редактировать
-          </button>
-        )}
       </div>
     </div>
   );

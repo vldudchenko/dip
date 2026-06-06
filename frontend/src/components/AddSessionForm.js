@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { API_URL } from '../utils/constants';
+import { ConfirmModal } from './ConfirmModal';
 
 export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCancel }) => {
   const [newSession, setNewSession] = useState({
@@ -13,15 +14,63 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
   });
   const [sessionError, setSessionError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Ограничение: 48 часов от текущего момента
+  const minAllowedDate = new Date();
+  minAllowedDate.setHours(minAllowedDate.getHours() + 48);
+  const minDateString = minAllowedDate.toISOString().split('T')[0];
+
+  const handleNumericKeyDown = (e) => {
+    // Блокируем 'e', '+', '-', '.', ','
+    if (['e', 'E', '+', '-', '.', ','].includes(e.key)) {
+      e.preventDefault();
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSessionError(null);
+
+    // Дополнительная проверка на 48 часов (с учетом времени)
+    const sessionStart = new Date(`${newSession.start_date}T${newSession.start_time}`);
+    const now = new Date();
+    const diffHours = (sessionStart - now) / (1000 * 60 * 60);
+
+    if (diffHours < 48) {
+      setSessionError('Прохождение должно начинаться не ранее чем через 48 часов от текущего времени по МСК.');
+      return;
+    }
+
+    const minP = Number(newSession.min_people);
+    const maxP = Number(newSession.max_people);
+
+    if (minP < 1 || minP > 50 || maxP < 1 || maxP > 50) {
+      setSessionError('Количество участников должно быть от 1 до 50');
+      return;
+    }
+
+    if (minP > maxP) {
+      setSessionError('Минимальное количество участников не может быть больше максимального');
+      return;
+    }
+
+    const isSameDay = !newSession.end_date || newSession.end_date === newSession.start_date;
+    if (isSameDay && newSession.start_time >= newSession.end_time) {
+      setSessionError('Время окончания должно быть позже времени начала для однодневного прохождения');
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  const handleFinalConfirm = async () => {
+    setShowConfirmModal(false);
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/sessions`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'user-id': currentUserId
         },
@@ -33,9 +82,9 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
           end_date: newSession.end_date || newSession.start_date,
           start_time: newSession.start_time,
           end_time: newSession.end_time,
-          price: Number(newSession.price),
-          min_people: Number(newSession.min_people),
-          max_people: Number(newSession.max_people)
+          price: Math.floor(Number(newSession.price)),
+          min_people: Math.floor(Number(newSession.min_people)),
+          max_people: Math.floor(Number(newSession.max_people))
         })
       });
 
@@ -62,7 +111,7 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
             value={newSession.start_date}
             onChange={(e) => setNewSession({ ...newSession, start_date: e.target.value, end_date: newSession.end_date < e.target.value ? e.target.value : newSession.end_date })}
             required
-            min={new Date().toISOString().split('T')[0]}
+            min={minDateString}
           />
         </div>
         <div className="form-col">
@@ -72,7 +121,7 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
             value={newSession.end_date}
             onChange={(e) => setNewSession({ ...newSession, end_date: e.target.value })}
             required
-            min={newSession.start_date || new Date().toISOString().split('T')[0]}
+            min={newSession.start_date || minDateString}
           />
         </div>
       </div>
@@ -100,34 +149,38 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
         <div className="form-col">
           <label>Цена (₽) *</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={newSession.price}
-            onChange={(e) => setNewSession({ ...newSession, price: e.target.value })}
+            onKeyDown={handleNumericKeyDown}
+            onChange={(e) => setNewSession({ ...newSession, price: e.target.value.replace(/\D/g, '') })}
             required
-            min="0"
           />
         </div>
         <div className="form-col">
           <label>Мин. человек *</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={newSession.min_people}
-            onChange={(e) => setNewSession({ ...newSession, min_people: e.target.value })}
+            onKeyDown={handleNumericKeyDown}
+            onChange={(e) => setNewSession({ ...newSession, min_people: e.target.value.replace(/\D/g, '') })}
             required
-            min="1"
           />
         </div>
         <div className="form-col">
           <label>Макс. человек *</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={newSession.max_people}
-            onChange={(e) => setNewSession({ ...newSession, max_people: e.target.value })}
+            onKeyDown={handleNumericKeyDown}
+            onChange={(e) => setNewSession({ ...newSession, max_people: e.target.value.replace(/\D/g, '') })}
             required
-            min="1"
           />
         </div>
       </div>
+      <p className="form-tip">Запись закрывается за 24 часа до старта. Ближайшая доступная дата — через 48 часов.</p>
       {sessionError && <div className="form-error">{sessionError}</div>}
       <div className="form-actions" style={{ display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'flex-end' }}>
         <button type="submit" className="btn btn--primary" disabled={loading}>
@@ -137,6 +190,16 @@ export const AddSessionForm = ({ routeId, currentUserId, onSessionCreated, onCan
           Отмена
         </button>
       </div>
+
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        title="Создание прохождения"
+        message={`Вы уверены, что хотите создать прохождение: ${new Date(newSession.start_date).toLocaleDateString()} в ${newSession.start_time}?`}
+        confirmLabel="Создать"
+        confirmVariant="primary"
+        onConfirm={handleFinalConfirm}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </form>
   );
 };

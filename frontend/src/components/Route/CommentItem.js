@@ -2,21 +2,22 @@ import React, { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import defaultAvatar from '../../static/Avatar.png';
 import { ConfirmModal } from '../ConfirmModal';
+import FormattedDate from '../FormattedDate';
 
 /**
  * Компонент комментария с поддержкой вложенности и мемоизацией
  */
-const CommentItem = memo(({ 
-  comment, 
-  user, 
-  onReply, 
-  onEdit, 
-  onDelete, 
-  activeReplyId, 
-  onToggleReply, 
-  activeEditId, 
-  onToggleEdit, 
-  isReply = false 
+const CommentItem = memo(({
+  comment,
+  user,
+  onReply,
+  onEdit,
+  onDelete,
+  activeReplyId,
+  onToggleReply,
+  activeEditId,
+  onToggleEdit,
+  isReply = false
 }) => {
   const [showReplies, setShowReplies] = useState(comment.type === 'question');
   const [avatarError, setAvatarError] = useState(false);
@@ -57,22 +58,12 @@ const CommentItem = memo(({
     await onDelete(comment.id);
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <div className="comment-item">
       <div className="comment-header">
         <Link to={`/user/${comment.users?.login}`} className="comment-header-user">
-          <div className="avatar-container avatar-container--small">
+          <div className="avatar-container avatar-container--small" style={{ width: '36px', height: '36px' }}>
             <img
               src={avatarError || !comment.users?.avatar ? defaultAvatar : comment.users.avatar}
               alt={comment.users?.login}
@@ -81,7 +72,6 @@ const CommentItem = memo(({
           </div>
           <div className="comment-info">
             <span className="comment-author">{comment.users?.login}</span>
-            <span className="comment-date">{formatDate(comment.created_at)}</span>
           </div>
         </Link>
 
@@ -144,13 +134,21 @@ const CommentItem = memo(({
         </div>
       )}
 
-      {user && !isEditing && !isReview && canReply && (
-        <button
-          className="comment-reply-btn"
-          onClick={() => onToggleReply(comment.id)}
-        >
-          {showReplyForm ? 'Отмена' : 'Ответить'}
-        </button>
+      {!isEditing && (
+        <div className="comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+          <span className="comment-date" style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+            <FormattedDate date={comment.created_at} />
+          </span>
+
+          {user && !isReview && canReply && (
+            <button
+              className="comment-reply-btn"
+              onClick={() => onToggleReply(comment.id)}
+            >
+              {showReplyForm ? 'Отмена' : 'Ответить'}
+            </button>
+          )}
+        </div>
       )}
 
       {showReplyForm && (

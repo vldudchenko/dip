@@ -18,8 +18,8 @@ export function createVideoIcon(video, isHighlighted = false) {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 50px;
-        height: 50px;
+        width: 35px;
+        height: 35px;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.4);
         backdrop-filter: blur(10px);

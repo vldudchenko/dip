@@ -76,16 +76,23 @@
   margin: 0.5rem 0;
 }
 
-.footer-phone {
+.footer-phone,
+.footer-email {
   margin: 0.25rem 0;
 }
 
-.footer-phone a {
+.footer-phone a,
+.footer-email a {
   color: #fff;
   text-decoration: none;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   transition: color 0.2s;
+}
+
+.footer-phone a:hover,
+.footer-email a:hover {
+  color: #7c3aed;
 }
 
 .footer-schedule {

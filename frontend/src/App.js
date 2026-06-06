@@ -8,7 +8,6 @@ import { UserPage } from './pages/UserPage';
 import { GuidePage } from './pages/GuidePage';
 import { RoutePage } from './pages/RoutePage';
 import { RoutePathPage } from './pages/RoutePathPage';
-import { SearchPage } from './pages/SearchPage';
 import { PostVideoPage } from './pages/PostVideoPage';
 import { InteractiveMapPage } from './pages/InteractiveMapPage';
 import { TermsPage } from './pages/TermsPage';
@@ -22,6 +21,7 @@ import { useMapProvider } from './hooks/useMapProvider';
 
 import { api, loadConfig } from './api';
 
+import './styles/common.css';
 import './App.css';
 
 function App() {
@@ -30,7 +30,7 @@ function App() {
   const { provider } = useMapProvider();
   const location = useLocation();
   // Загружаем Яндекс SDK только если выбран яндекс-провайдер
-  const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
+  const { ymapsReady, loadError } = useYandexMaps(true); // Загружаем Яндекс SDK в фоне всегда
   const [configLoaded, setConfigLoaded] = useState(false);
 
   const uploadHandlerRef = useRef(null);
@@ -81,9 +81,8 @@ function App() {
 
       <main>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage user={user} />} />
 
-          <Route path="/search" element={<SearchPage />} />
 
           <Route path="/post-video" element={<PostVideoPage user={user} authLoading={authLoading} />} />
 

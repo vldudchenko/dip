@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import defaultAvatar from '../static/Avatar.png';
 import { ConfirmModal } from '../components/ConfirmModal';
+import FormattedDate from '../components/FormattedDate';
 
 // Компонент комментария с поддержкой вложенности
 function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, onToggleReply, activeEditId, onToggleEdit }) {
@@ -28,7 +29,7 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
     e.preventDefault();
     if (!editContent.trim()) return;
     await onEdit(comment.id, editContent);
-    setIsEditing(false);
+    onToggleEdit(null);
   };
 
   const handleDeleteClick = () => {
@@ -40,22 +41,12 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
     await onDelete(comment.id);
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <div className="comment-item">
       <div className="comment-header">
         <Link to={`/user/${comment.users?.login}`} className="comment-header-user">
-          <div className="avatar-container avatar-container--small">
+          <div className="avatar-container avatar-container--header">
             <img
               src={avatarError || !comment.users?.avatar ? defaultAvatar : comment.users.avatar}
               alt={comment.users?.login}
@@ -64,7 +55,6 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
           </div>
           <div className="comment-info">
             <span className="comment-author">{comment.users?.full_name || comment.users?.login}</span>
-            <span className="comment-date">{formatDate(comment.created_at)}</span>
           </div>
         </Link>
 
@@ -143,13 +133,21 @@ function CommentItem({ comment, user, onReply, onEdit, onDelete, activeReplyId, 
         </div>
       )}
 
-      {user && !isEditing && (
-        <button className="comment-reply-btn" onClick={() => {
-          onToggleReply(comment.id);
-          setReplyContent('');
-        }}>
-          {showReplyForm ? 'Отмена' : 'Ответить'}
-        </button>
+      {!isEditing && (
+        <div className="comment-footer" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+          <span className="comment-date" style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+            <FormattedDate date={comment.created_at} />
+          </span>
+          
+          {user && (
+            <button className="comment-reply-btn" onClick={() => {
+              onToggleReply(comment.id);
+              setReplyContent('');
+            }}>
+              {showReplyForm ? 'Отмена' : 'Ответить'}
+            </button>
+          )}
+        </div>
       )}
 
       {showReplyForm && (
@@ -576,7 +574,7 @@ export function VideoPage() {
                     />
                   ))
                 ) : (
-                  <p className="no-comments" style={{ color: '#666' }}>Комментариев пока нет. Будьте первым!</p>
+                  <p className="no-comments" style={{ color: '#666' }}>Понравилась публикация?<br></br>Добавьте первый комментарий.</p>
                 )}
               </div>
             </div>
@@ -586,9 +584,9 @@ export function VideoPage() {
             <div className="guide-card">
               <Link to={`/user/${author}`} className="guide-card-link">
                 <div className="avatar-container avatar-container--header">
-                  <img 
-                    src={avatarError || !video.users?.avatar ? defaultAvatar : video.users.avatar} 
-                    alt={author} 
+                  <img
+                    src={avatarError || !video.users?.avatar ? defaultAvatar : video.users.avatar}
+                    alt={author}
                     onError={() => setAvatarError(true)}
                   />
                 </div>
@@ -616,7 +614,36 @@ export function VideoPage() {
                     disabled={loadingLike}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <span style={{ fontSize: '1.2rem' }}>{isLiked ? '❤️' : '🤍'}</span>
+                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                      {isLiked ? (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="#ef4444"
+                        >
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z" />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          style={{ color: '#666' }}
+                        >
+                          <path
+                            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
                     <span style={{ fontSize: '0.9rem', color: '#666' }}>Лайки</span>
                   </button>
                   <span style={{ color: '#666' }}>{stats.likeCount}</span>
@@ -643,13 +670,22 @@ export function VideoPage() {
                   Показать на карте
                 </button>
 
+                {video.route_id && (
+                  <button
+                    className="btn btn--secondary btn--full"
+                    onClick={() => navigate(`/route/${video.route_id}`)}
+                  >
+                    Перейти к маршруту
+                  </button>
+                )}
+
                 {user && (
                   <button
                     className="btn btn--secondary btn--full"
                     onClick={handleToggleMainForm}
                     style={{ color: '#666' }}
                   >
-                    {showCommentForm ? 'Отмена' : 'Написать'}
+                    {showCommentForm ? 'Отмена' : 'Комментарий'}
                   </button>
                 )}
 

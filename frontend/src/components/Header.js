@@ -8,7 +8,6 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
   const [showModal, setShowModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAgreed, setIsAgreed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
   const [avatarError, setAvatarError] = useState(false);
@@ -46,10 +45,8 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
   };
 
   const handleLoginConfirm = () => {
-    if (isAgreed) {
-      setIsLoginModalOpen(false);
-      onLogin();
-    }
+    setIsLoginModalOpen(false);
+    onLogin();
   };
 
   const handleLoginCancel = () => {
@@ -57,12 +54,6 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
     setIsAgreed(false);
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?query=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
 
   const isActive = (path) => location.pathname === path;
 
@@ -70,24 +61,17 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
     <>
       <header className="App-header">
         <div className="header-left">
-          <h1 className="logo" onClick={() => navigate('/')}>
+          <h1 
+            className="logo" 
+            onClick={() => navigate('/')}
+            role="link"
+            tabIndex={0}
+            aria-label="Перейти на главную страницу"
+            onKeyDown={(e) => e.key === 'Enter' && navigate('/')}
+          >
             <img src="/favicon.ico" alt="GeoClips" className="logo-icon" />
             GeoClips
           </h1>
-          <form className="header-search" onSubmit={handleSearch}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск маршрутов..."
-            />
-            <button type="submit" className="search-icon-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </button>
-          </form>
         </div>
 
         <div className="header-center">
@@ -119,16 +103,20 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
           ) : user ? (
             <div className="header-logged-in-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div className="avatar-container avatar-container--header interactive" onClick={handleProfileClick}>
-                <img 
-                  src={avatarError || !user.avatar ? defaultAvatar : user.avatar} 
-                  alt={user.login} 
+                <img
+                  src={avatarError || !user.avatar ? defaultAvatar : user.avatar}
+                  alt={user.login}
                   onError={() => setAvatarError(true)}
                 />
               </div>
               <button className="logout-button" onClick={handleLogoutClick}>Выйти</button>
             </div>
           ) : (
-            <button onClick={handleLoginAttempt} className="login-button-reset">
+            <button 
+              onClick={handleLoginAttempt} 
+              className="login-button-reset"
+              aria-label="Войти через Яндекс ID"
+            >
               <svg width="228" height="44" viewBox="0 0 228 44" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 22C0 12.6177 0 7.92655 2.47976 4.69486C3.11817 3.86288 3.86288 3.11817 4.69486 2.47976C7.92655 0 12.6177 0 22 0H206C215.382 0 220.073 0 223.305 2.47976C224.137 3.11817 224.882 3.86288 225.52 4.69486C228 7.92655 228 12.6177 228 22C228 31.3823 228 36.0735 225.52 39.3051C224.882 40.1371 224.137 40.8818 223.305 41.5202C220.073 44 215.382 44 206 44H22C12.6177 44 7.92655 44 4.69486 41.5202C3.86288 40.8818 3.11817 40.1371 2.47976 39.3051C0 36.0735 0 31.3823 0 22Z" fill="black"></path>
                 <rect x="28" y="10" width="24" height="24" rx="12" fill="#FC3F1D"></rect>
@@ -183,14 +171,12 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
         title="Подтверждение авторизации"
         confirmLabel="Продолжить"
         confirmVariant="primary"
-        isConfirmDisabled={!isAgreed}
         onConfirm={handleLoginConfirm}
         onCancel={handleLoginCancel}
         className="login-modal"
         message={
           <div className="login-modal-content">
             <p>В рамках работы сервиса могут обрабатываться следующие данные:</p>
-            <p><strong>API Яндекс ID:</strong></p>
             <ul className="data-list">
               <li>
                 <span className="bullet"></span>
@@ -208,24 +194,10 @@ export function Header({ user, onLogin, onLogout, authLoading }) {
                 <span className="bullet"></span>
                 Доступ к логину, имени и фамилии, полу
               </li>
-              <li>
-                <span className="bullet"></span>
-                Доступ к номеру телефона
-              </li>
             </ul>
             <p className="yandex-info">
-              Авторизация осуществляется через сервис Яндекс ID. Продолжая вход, вы даёте согласие на обработку и хранение данных в пределах, необходимых для функционирования веб-приложения.
+              Авторизация осуществляется через сервис Яндекс ID. Продолжая вход, вы даёте согласие на обработку и хранение данных в пределах, необходимых для функционирования веб-приложения, а также принимаете условия <Link to="/terms" onClick={handleLoginCancel}>Пользовательского соглашения</Link> и <Link to="/privacy" onClick={handleLoginCancel}>Политики конфиденциальности</Link>.
             </p>
-            <label className="agreement-checkbox">
-              <input
-                type="checkbox"
-                checked={isAgreed}
-                onChange={(e) => setIsAgreed(e.target.checked)}
-              />
-              <span>
-                Я принимаю условия <Link to="/terms" onClick={handleLoginCancel}>Пользовательского соглашения</Link> и <Link to="/privacy" onClick={handleLoginCancel}>Политики конфиденциальности</Link>
-              </span>
-            </label>
           </div>
         }
       />

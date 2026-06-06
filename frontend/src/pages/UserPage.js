@@ -1,5 +1,5 @@
 import { API_URL } from '../utils/constants';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import defaultAvatar from '../static/Avatar.png';
@@ -7,8 +7,10 @@ import {
   STATUS_LABELS,
   STATUS_CLASSES
 } from '../utils/routeConstants';
-import { ProfileSkeleton } from '../components/Skeletons/ProfileSkeleton';
+import { UserPageSkeleton } from '../components/Skeletons/ProfileSkeleton';
 import { SessionItem } from '../components/SessionItem';
+import FormattedDate from '../components/FormattedDate';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 
 /**
@@ -40,58 +42,111 @@ export const UserPage = () => {
   const [videoPage, setVideoPage] = useState(1);
   const VIDEOS_PER_PAGE = 6;
 
+  // Модалки записи/отписки
+  const [sessionToJoin, setSessionToJoin] = useState(null);
+  const [sessionToLeave, setSessionToLeave] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
   const isOwner = currentUserId === user?.id;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1. Загружаем данные пользователя
-        const userResponse = await fetch(`${API_URL}/users/login/${login}`);
-        if (!userResponse.ok) {
-          throw new Error('Пользователь не найден');
-        }
-        const userData = await userResponse.json();
-
-        // Если пользователь — гид, перенаправляем на страницу гида
-        if (userData.is_guide) {
-          navigate(`/guide/${login}`, { replace: true });
-          return;
-        }
-
-        setUser(userData);
-        setAvatarError(false);
-
-        // 2. Загружаем прохождения пользователя
-        const sessionsResponse = await fetch(`${API_URL}/sessions/user/${userData.id}`);
-        if (sessionsResponse.ok) {
-          const sessionsData = await sessionsResponse.json();
-          // Распаковываем вложенную структуру { session: { ... } }
-          const sessions = Array.isArray(sessionsData)
-            ? sessionsData
-              .map(item => item.session)
-              .filter(Boolean)
-            : [];
-          setUserSessions(sessions);
-        }
-
-        // 3. Загружаем все видео и фильтруем по user_id
-        const videosResponse = await fetch(`${API_URL}/videos`);
-        if (videosResponse.ok) {
-          const videosData = await videosResponse.json();
-          const filtered = Array.isArray(videosData)
-            ? videosData.filter(v => v.user_id === userData.id)
-            : [];
-          setUserVideos(filtered);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    try {
+      // 1. Загружаем данные пользователя
+      const userResponse = await fetch(`${API_URL}/users/login/${login}`);
+      if (!userResponse.ok) {
+        throw new Error('Пользователь не найден');
       }
-    };
+      const userData = await userResponse.json();
 
-    fetchData();
+      // Если пользователь — гид, перенаправляем на страницу гида
+      if (userData.is_guide) {
+        navigate(`/guide/${login}`, { replace: true });
+        return;
+      }
+
+      setUser(userData);
+      setAvatarError(false);
+
+      // 2. Загружаем прохождения пользователя
+      const sessionsResponse = await fetch(`${API_URL}/sessions/user/${userData.id}`);
+      if (sessionsResponse.ok) {
+        const sessionsData = await sessionsResponse.json();
+        // Распаковываем вложенную структуру { session: { ... } }
+        const sessions = Array.isArray(sessionsData)
+          ? sessionsData
+            .map(item => item.session)
+            .filter(Boolean)
+          : [];
+        setUserSessions(sessions);
+      }
+
+      // 3. Загружаем все видео и фильтруем по user_id
+      const videosResponse = await fetch(`${API_URL}/videos`);
+      if (videosResponse.ok) {
+        const videosData = await videosResponse.json();
+        const filtered = Array.isArray(videosData)
+          ? videosData.filter(v => v.user_id === userData.id)
+          : [];
+        setUserVideos(filtered);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [login, navigate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleJoinConfirm = async () => {
+    if (!sessionToJoin || !currentUserId) return;
+    setActionLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionToJoin}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось записаться');
+      }
+
+      setSessionToJoin(null);
+      await fetchData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLeaveConfirm = async () => {
+    if (!sessionToLeave || !currentUserId) return;
+    setActionLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/sessions/${sessionToLeave}/leave`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Не удалось отписаться');
+      }
+
+      setSessionToLeave(null);
+      await fetchData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleToggleGuide = async () => {
     try {
@@ -120,14 +175,6 @@ export const UserPage = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
@@ -154,7 +201,7 @@ export const UserPage = () => {
   );
 
   if (loading) {
-    return <ProfileSkeleton />;
+    return <UserPageSkeleton />;
   }
 
 
@@ -178,7 +225,7 @@ export const UserPage = () => {
 
         <div className="user-header-info">
           <h1>{user.full_name || user.login}</h1>
-          <p className="user-login">@{user.login}</p>
+          <p className="user-login" style={{ color: '#333' }}>@{user.login}</p>
         </div>
       </div>
 
@@ -219,6 +266,9 @@ export const UserPage = () => {
                       statusLabels={STATUS_LABELS}
                       statusClasses={STATUS_CLASSES}
                       isLoggedIn={!!currentUserId}
+                      isJoined={session.participants?.some(p => String(p.user_id) === String(currentUserId))}
+                      onJoin={setSessionToJoin}
+                      onLeave={setSessionToLeave}
                       showRouteTitle={true}
                       showOrganizer={true}
                       initialGuide={session.guide}
@@ -261,7 +311,7 @@ export const UserPage = () => {
 
         {/* Вкладка: Видео */}
         {activeTab === 'videos' && (
-          <div className="user-videos-tab">
+          <div className="user-videos-tab" style={{ minHeight: '741px' }}>
             {userVideos.length === 0 ? (
               <p className="no-routes">Пользователь ещё не загружал видео</p>
             ) : (
@@ -282,7 +332,18 @@ export const UserPage = () => {
                         />
                       </div>
                       <div className="user-video-info">
-                        <span className="user-video-date">{formatDate(video.created_at)}</span>
+                        <div className="user-video-meta">
+                          <span className="user-video-views">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="view-icon">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            {video.views?.[0]?.count || 0}
+                          </span>
+                          <span className="user-video-date">
+                            <FormattedDate date={video.created_at} />
+                          </span>
+                        </div>
                       </div>
                     </Link>
                   ))}
@@ -320,6 +381,28 @@ export const UserPage = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!sessionToJoin}
+        title="Запись на прохождение"
+        message="Вы уверены, что хотите записаться на это прохождение?"
+        confirmLabel="Записаться"
+        confirmVariant="primary"
+        isConfirmDisabled={actionLoading}
+        onConfirm={handleJoinConfirm}
+        onCancel={() => setSessionToJoin(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!sessionToLeave}
+        title="Отмена записи"
+        message="Вы уверены, что хотите отменить свою запись на это прохождение?"
+        confirmLabel="Отписаться"
+        confirmVariant="delete"
+        isConfirmDisabled={actionLoading}
+        onConfirm={handleLeaveConfirm}
+        onCancel={() => setSessionToLeave(null)}
+      />
     </div>
   );
 };

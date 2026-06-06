@@ -1,6 +1,7 @@
 import express from 'express';
 import { routesService } from '../services/routes.js';
 import { requireAuth, requireGuide } from '../middleware/errorHandler.js';
+import { validate, routeSchema } from '../middleware/validate.js';
 
 const router = express.Router();
 
@@ -22,6 +23,31 @@ router.get('/', async (req, res) => {
 router.get('/guide/:guideId', async (req, res) => {
   try {
     const routes = await routesService.getRoutesByGuideId(req.params.guideId);
+    res.json(routes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/routes/search/all - Поиск и фильтрация маршрутов
+ */
+router.get('/search/all', async (req, res) => {
+  try {
+    const filters = {
+      searchQuery: req.query.query,
+      guideId: req.query.guideId,
+      minDist: req.query.minDist ? parseFloat(req.query.minDist) : undefined,
+      maxDist: req.query.maxDist ? parseFloat(req.query.maxDist) : undefined,
+      minDuration: req.query.minDuration ? parseFloat(req.query.minDuration) : undefined,
+      maxDuration: req.query.maxDuration ? parseFloat(req.query.maxDuration) : undefined,
+      onlyActive: req.query.onlyActive === 'true',
+      onlyWithPaths: req.query.onlyWithPaths === 'true',
+      sortBy: req.query.sortBy,
+      transports: req.query.transports ? req.query.transports.split(',') : undefined
+    };
+    
+    const routes = await routesService.searchRoutes(filters);
     res.json(routes);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -68,7 +94,7 @@ router.post('/:id/view', requireAuth, async (req, res) => {
 /**
  * POST /api/routes - Создание нового маршрута
  */
-router.post('/', requireGuide, async (req, res) => {
+router.post('/', requireGuide, validate(routeSchema), async (req, res) => {
   try {
     const data = { ...req.body };
     delete data.userId;
@@ -83,7 +109,7 @@ router.post('/', requireGuide, async (req, res) => {
 /**
  * PATCH /api/routes/:id - Обновление маршрута
  */
-router.patch('/:id', requireGuide, async (req, res) => {
+router.patch('/:id', requireGuide, validate(routeSchema), async (req, res) => {
   try {
     const { userId } = req.body;
     const route = await routesService.getRouteById(req.params.id);
@@ -117,22 +143,6 @@ router.delete('/:id', requireGuide, async (req, res) => {
 
     await routesService.deleteRoute(req.params.id);
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/routes/search - Поиск маршрутов
- */
-router.get('/search/all', async (req, res) => {
-  try {
-    const { query } = req.query;
-    if (!query) {
-      return res.status(400).json({ error: 'Необходимо указать поисковый запрос' });
-    }
-    const routes = await routesService.searchRoutes(query);
-    res.json(routes);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

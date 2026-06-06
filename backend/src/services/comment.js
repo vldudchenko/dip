@@ -30,48 +30,37 @@ class CommentService {
    * Группирует комментарии по уровням (родительские и ответы)
    */
   groupComments(comments) {
-    const commentMap = new Map();
-    const rootComments = [];
+    if (!comments || comments.length === 0) return [];
 
-    // Создаём карту всех комментариев
+    const commentMap = new Map();
+    const roots = [];
+
+    // Первый проход: создаем объекты с массивом replies
     comments.forEach(comment => {
       commentMap.set(comment.id, { ...comment, replies: [] });
     });
 
-    // Распределяем по уровням (TikTok style: все ответы плоские и привязаны к корневому)
+    // Второй проход: связываем детей с родителями
     comments.forEach(comment => {
-      const commentNode = commentMap.get(comment.id);
-      if (comment.parent_id) {
-        const directParent = commentMap.get(comment.parent_id);
-        if (directParent) {
-          commentNode.replyToUser = directParent.users;
-        }
-
-        let rootParent = directParent;
-        
-        // Find the ultimate root
-        while (rootParent && rootParent.parent_id) {
-          rootParent = commentMap.get(rootParent.parent_id);
-        }
-        
-        if (rootParent) {
-          rootParent.replies.push(commentNode);
-        } else {
-          rootComments.push(commentNode);
-        }
+      const node = commentMap.get(comment.id);
+      if (comment.parent_id && commentMap.has(comment.parent_id)) {
+        commentMap.get(comment.parent_id).replies.push(node);
       } else {
-        rootComments.push(commentNode);
+        roots.push(node);
       }
     });
 
-    // Сортируем ответы по дате (старые сверху для ответов)
-    rootComments.forEach(root => {
-      root.replies.sort((a, b) =>
-        new Date(a.created_at) - new Date(b.created_at)
-      );
+    // Сортировка по дате (старые сверху)
+    const sortByDate = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+    
+    roots.sort(sortByDate);
+    commentMap.forEach(node => {
+      if (node.replies.length > 0) {
+        node.replies.sort(sortByDate);
+      }
     });
 
-    return rootComments;
+    return roots;
   }
 
   /**
@@ -84,7 +73,7 @@ class CommentService {
 
     // Проверяем существование родительского комментария
     if (parentId) {
-      const { data: parentComment, error: parentError } = await supabaseAnon
+      const { data: parentComment, error: parentError } = await supabaseAdmin
         .from('comments')
         .select('id')
         .eq('id', parentId)
@@ -126,7 +115,7 @@ class CommentService {
       throw new Error('Комментарий не может быть пустым');
     }
 
-    const existingComment = await this.getCommentFull(id);
+    const existingComment = await this.getCommentById(id);
 
     if (existingComment.user_id !== userId) {
       throw new Error('Можно редактировать только свои комментарии');
@@ -186,19 +175,6 @@ class CommentService {
     return existingComment;
   }
 
-  async getCommentFull(id) {
-    const { data, error } = await supabaseAnon
-      .from('comments')
-      .select('user_id')
-      .eq('id', id)
-      .single();
-
-    if (error || !data) {
-      throw new Error('Комментарий не найден');
-    }
-
-    return data;
-  }
 
   // ==========================================
   // МАРШРУТЫ (ROUTE COMMENTS)
@@ -226,6 +202,35 @@ class CommentService {
   async addRouteComment(routeId, userId, content, type = 'review', parentId = null) {
     if (!content || content.trim() === '') {
       throw new Error('Комментарий не может быть пустым');
+    }
+
+    // Проверка: писать отзывы к маршруту может только пользователь, который его прошел
+    if (type === 'review' && !parentId) {
+      const { data: participation, error: partError } = await supabaseAdmin
+        .from('session_participants')
+        .select(`
+          session_id,
+          route_sessions!inner (
+            route_id,
+            status
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('route_sessions.route_id', routeId)
+        .eq('route_sessions.status', 'completed');
+
+      const { data: routeData } = await supabaseAdmin
+        .from('routes')
+        .select('guide_id')
+        .eq('id', routeId)
+        .single();
+
+      const isGuide = routeData?.guide_id === userId;
+      const hasParticipated = participation && participation.length > 0;
+
+      if (!hasParticipated && !isGuide) {
+        throw new Error('Оставлять отзывы могут только пользователи, прошедшие маршрут');
+      }
     }
 
     if (parentId) {

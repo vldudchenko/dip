@@ -9,25 +9,33 @@ import { MapProviderToggle } from './MapProviderToggle';
  * Автоматически выбирает нужную реализацию карты (OSM/Leaflet или Яндекс)
  * в зависимости от выбранного провайдера и показывает переключатель поверх карты.
  */
-export function Map({ 
-  ymapsReady, 
-  loadError, 
-  configLoaded, 
-  selectedPoint, 
-  onReset, 
-  routes = [], 
-  hideLayerControl = false, 
-  hideLeftControls = false, 
+export function Map({
+  ymapsReady,
+  loadError,
+  configLoaded,
+  selectedPoint,
+  onReset,
+  routes = [],
+  hideLayerControl = false,
+  hideLeftControls = false,
   hoveredRouteId,
   onRouteHover,
   onRouteClick,
   allRoutes,
-  ...props 
+  showMilestones = true,
+  showVideos: showVideosProp,
+  videoFilterMode = 'all',
+  ...props
 }) {
   const { provider, setProvider } = useMapProvider();
   const [resetKey, setResetKey] = React.useState(0);
   const [showPath, setShowPath] = React.useState(true);
-  const [showVideos, setShowVideos] = React.useState(true);
+  const [internalShowVideos, setInternalShowVideos] = React.useState(true);
+
+  // Используем проп, если он передан, иначе внутреннее состояние
+  const showVideos = showVideosProp !== undefined ? showVideosProp : internalShowVideos;
+
+  const stabilizedRoutes = React.useMemo(() => routes, [routes]);
 
   const handleResetClick = () => {
     setResetKey(prev => prev + 1);
@@ -35,140 +43,100 @@ export function Map({
   };
 
   const renderMap = () => {
-    // Если конфиг еще не загружен (базовый API_URL), показываем лоадер
     if (!configLoaded) {
       return <div className="map-loading-placeholder">Загрузка конфигурации...</div>;
     }
 
     const mapProps = {
       ...props,
+      routes: stabilizedRoutes,
       showPath,
       showVideos,
-      routes,
       allRoutes,
       selectedPoint,
       hoveredRouteId,
       onRouteHover,
       onRouteClick,
-      key: resetKey
+      showMilestones,
+      resetKey,
+      videoFilterMode
     };
 
     if (provider === 'yandex') {
       if (loadError) {
         return (
-          <div className="map-loading-placeholder map-error">
-            <p>Ошибка загрузки Яндекс Карт (возможно исчерпан лимит API)</p>
-            <button
-              className="btn btn--primary btn--small"
-              onClick={() => setProvider('osm')}
-              style={{ marginTop: '10px' }}
-            >
-              Переключиться на OpenStreetMap
-            </button>
+          <div className="map-error-placeholder">
+            Ошибка загрузки Яндекс.Карт. Пожалуйста, проверьте API ключ или попробуйте OSM.
           </div>
         );
       }
       if (!ymapsReady) {
-        return <div className="map-loading-placeholder">Загрузка Яндекс Карт...</div>;
+        return <div className="map-loading-placeholder">Загрузка Яндекс.Карт...</div>;
       }
-      return <YandexMap {...mapProps} />;
+      return <YandexMap {...mapProps} ymapsReady={ymapsReady} />;
     }
 
     return <LeafletMap {...mapProps} />;
   };
 
   return (
-    <div className="map-with-toggle" style={{ height: '100%', width: '100%', position: 'relative' }}>
-      <MapProviderToggle provider={provider} onChange={setProvider} />
+    <div className="map-wrapper" style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {renderMap()}
 
-      {!hideLeftControls && (
-        <div className="map-controls-left" style={{
-          position: 'absolute',
-          top: '12px',
-          left: '12px',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px'
-        }}>
-          {/* Кнопка сброса положения */}
-          {onReset && (
+      <div className="map-controls-overlay">
+        {!hideLeftControls && (
+          <div className="map-left-controls">
             <button
               onClick={handleResetClick}
-              style={{
-                background: 'rgba(255, 255, 255, 0.95)',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
-                border: '1px solid #eee',
-                backdropFilter: 'blur(10px)',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#4b5563',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s',
-                width: 'fit-content',
-                whiteSpace: 'nowrap'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.backgroundColor = '#fff';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-              }}
               className="map-reset-btn"
+              title="Сбросить положение"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                <path d="M3 3v5h5" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 27"
+                fill="none"
+              >
+                <path
+                  d="M12 5V2L7 7L12 12V9C15.3137 9 18 11.6863 18 15C18 18.3137 15.3137 21 12 21C8.68629 21 6 18.3137 6 15H4C4 19.4183 7.58172 23 12 23C16.4183 23 20 19.4183 20 15C20 10.5817 16.4183 7 12 7V5Z"
+                  fill="currentColor"
+                />
               </svg>
             </button>
-          )}
 
-          {/* Управление слоями */}
-          {!hideLayerControl && (
-            <div className="map-layers-control" style={{
-              display: 'flex',
-              flexDirection: 'column',
-              background: 'rgba(255, 255, 255, 0.95)',
-              padding: '8px',
-              borderRadius: '12px',
-              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
-              border: '1px solid #eee',
-              backdropFilter: 'blur(10px)',
-              width: 'fit-content'
-            }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', color: '#4b5563', padding: '4px 8px', borderRadius: '6px', userSelect: 'none' }} className="map-layer-label">
-                <input
-                  type="checkbox"
-                  checked={showPath}
-                  onChange={(e) => setShowPath(e.target.checked)}
-                  style={{ accentColor: '#7c3aed', cursor: 'pointer', outline: 'none', boxShadow: 'none', WebkitTapHighlightColor: 'transparent' }}
-                />
-                Путь
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', color: '#4b5563', padding: '4px 8px', borderRadius: '6px', userSelect: 'none' }} className="map-layer-label">
-                <input
-                  type="checkbox"
-                  checked={showVideos}
-                  onChange={(e) => setShowVideos(e.target.checked)}
-                  style={{ accentColor: '#7c3aed', cursor: 'pointer', outline: 'none', boxShadow: 'none', WebkitTapHighlightColor: 'transparent' }}
-                />
-                Видео
-              </label>
-            </div>
-          )}
+            {!hideLayerControl && (
+              <div className="map-layers-control">
+                <label className="layer-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showPath}
+                    onChange={(e) => setShowPath(e.target.checked)}
+                  />
+                  <span>Путь</span>
+                </label>
+                <label className="layer-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showVideos}
+                    onChange={(e) => {
+                      if (showVideosProp === undefined) {
+                        setInternalShowVideos(e.target.checked);
+                      }
+                    }}
+                    disabled={showVideosProp !== undefined}
+                  />
+                  <span>Видео</span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="map-right-controls">
+          <MapProviderToggle provider={provider} onChange={setProvider} />
         </div>
-      )}
-
-      {renderMap()}
+      </div>
     </div>
   );
 }
-
-export default Map;

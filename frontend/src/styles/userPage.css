@@ -89,8 +89,8 @@
    ============================================ */
 .user-videos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
 }
 
 .user-video-card {
@@ -113,7 +113,6 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #000;
   overflow: hidden;
 }
 
@@ -156,9 +155,33 @@
   padding: 0.75rem 1rem;
 }
 
-.user-video-date {
-  font-size: 0.85rem;
+.user-video-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.user-video-date,
+.user-video-views {
+  font-size: 0.8rem;
   color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.user-video-views {
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.view-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+  stroke-width: 2.5px;
 }
 
 /* ============================================
@@ -185,6 +208,13 @@
   }
 
   .user-videos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-videos-grid {
+    grid-template-columns: 1fr;
   }
 }

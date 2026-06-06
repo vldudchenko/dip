@@ -155,3 +155,17 @@
 .faq-item.open .faq-question {
   color: #6366f1;
 }
+
+.faq-answer a,
+.legal-content a {
+  color: #6366f1;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s, text-decoration 0.2s;
+}
+
+.faq-answer a:hover,
+.legal-content a:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}

@@ -38,17 +38,31 @@ class MediaStorageService {
    * Загружает файл в Supabase Storage
    */
   async uploadFileToStorage(bucket, fileName, filePath) {
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from(bucket)
       .upload(fileName, fs.createReadStream(filePath), {
         upsert: true,
         contentType: this.getMimeType(filePath)
       });
 
+    if (uploadError && (uploadError.status === 404 || uploadError.statusCode === '404' || uploadError.message?.includes('not found'))) {
+      await supabaseAdmin.storage.createBucket(bucket, {
+        public: bucket !== 'raw-videos',
+      });
+
+      // Повторяем загрузку
+      const retryResult = await supabaseAdmin.storage
+        .from(bucket)
+        .upload(fileName, fs.createReadStream(filePath), {
+          upsert: true,
+          contentType: this.getMimeType(filePath)
+        });
+
+      uploadData = retryResult.data;
+      uploadError = retryResult.error;
+    }
+
     if (uploadError) {
-      if (uploadError.status === 404 || uploadError.message?.includes('not found')) {
-        throw new Error(`Бакет "${bucket}" не найден в хранилище Supabase. Пожалуйста, создайте его.`);
-      }
       throw uploadError;
     }
 
@@ -84,6 +98,37 @@ class MediaStorageService {
   }
 
   /**
+   * Генерирует Signed URL для прямой загрузки
+   */
+  async generateSignedUploadUrl(bucket, fileName) {
+    // Используем supabaseAdmin для генерации URL
+    let { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .createSignedUploadUrl(fileName);
+
+    // Если бакет не найден (404), пробуем создать его автоматически
+    if (error && (error.status === 404 || error.statusCode === '404' || error.message?.includes('not found'))) {
+      const { error: createError } = await supabaseAdmin.storage.createBucket(bucket, {
+        public: bucket !== 'raw-videos', // raw-videos делаем приватным, остальные публичными
+      });
+
+      if (createError && !createError.message?.includes('already exists')) {
+        console.error(`Не удалось создать бакет ${bucket}:`, createError);
+        return { data: null, error: createError };
+      }
+
+      // Повторяем попытку после создания
+      const retryResult = await supabaseAdmin.storage
+        .from(bucket)
+        .createSignedUploadUrl(fileName);
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    return { data, error };
+  }
+
+  /**
    * Удаляет файл из хранилища
    */
   async deleteFileFromStorage(bucket, fileName) {
@@ -113,9 +158,12 @@ class MediaStorageService {
     const util = await import('util');
     const execPromise = util.promisify(exec);
 
+    // Динамический импорт, чтобы использовать установленный бинарник
+    const { default: ffprobeInstaller } = await import('@ffprobe-installer/ffprobe');
+
     try {
       const { stdout } = await execPromise(
-        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`
+        `"${ffprobeInstaller.path}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`
       );
       return Math.round(parseFloat(stdout.trim()));
     } catch (ffprobeError) {
@@ -125,68 +173,47 @@ class MediaStorageService {
   }
 
   /**
-   * Полный процесс загрузки видео
+   * Регистрирует загруженное напрямую видео в БД (статус processing)
    */
-  async uploadVideo(file, userId, latitude, longitude, additionalData = {}) {
-    const userLogin = await this.getUserLogin(userId);
-    const routeId = additionalData.routeId || 'general';
-    const fileExt = path.extname(file.originalname);
-    const uniqueId = crypto.randomUUID();
-    
-    // Формируем имя файла: route_id/user_login/uuid.ext
-    const fileName = `${routeId}/${userLogin}/${uniqueId}${fileExt}`;
+  async registerVideo(userId, latitude, longitude, originalName, filePath, additionalData = {}) {
+    const videoData = {
+      user_id: userId,
+      file_url: filePath, // Пока храним путь raw файла
+      status: 'processing',
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      original_name: originalName,
+      route_id: additionalData.routeId || null
+    };
 
-    try {
-      // 1. Загружаем файл в хранилище
-      await this.uploadFileToStorage('videos', fileName, file.path);
-      const publicUrl = this.getPublicUrl('videos', fileName);
-
-      // 2. Подготовка данных для вставки в БД
-      const videoData = {
-        user_id: userId,
-        file_url: publicUrl,
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        original_name: file.originalname,
-        is_live: additionalData.isLive || false,
-        route_id: additionalData.routeId || null
-      };
-
-      // Добавляем данные о маршруте для live-маркеров
-      if (additionalData.isLive) {
-        if (additionalData.routeStart) {
-          videoData.route_start_lat = parseFloat(additionalData.routeStart.latitude);
-          videoData.route_start_lng = parseFloat(additionalData.routeStart.longitude);
-        }
-        if (additionalData.routeEnd) {
-          videoData.route_end_lat = parseFloat(additionalData.routeEnd.latitude);
-          videoData.route_end_lng = parseFloat(additionalData.routeEnd.longitude);
-        }
-        if (additionalData.routeGeometry) {
-          videoData.route_geometry = additionalData.routeGeometry;
-        }
-        if (additionalData.videoDuration) {
-          videoData.video_duration = parseInt(additionalData.videoDuration);
-        }
+    if (additionalData.isLive) {
+      if (additionalData.routeStart) {
+        videoData.route_start_lat = parseFloat(additionalData.routeStart.latitude);
+        videoData.route_start_lng = parseFloat(additionalData.routeStart.longitude);
       }
-
-      // 3. Создаём запись в БД
-      const { data: video, error: videoError } = await supabaseAdmin
-        .from('videos')
-        .insert(videoData)
-        .select()
-        .single();
-
-      if (videoError) {
-        // Очистка если запись в БД не удалась
-        await this.deleteFileFromStorage('videos', fileName);
-        throw videoError;
+      if (additionalData.routeEnd) {
+        videoData.route_end_lat = parseFloat(additionalData.routeEnd.latitude);
+        videoData.route_end_lng = parseFloat(additionalData.routeEnd.longitude);
       }
-
-      return video;
-    } finally {
-      this.deleteTempFile(file.path);
+      if (additionalData.routeGeometry) {
+        videoData.route_geometry = additionalData.routeGeometry;
+      }
+      if (additionalData.videoDuration) {
+        videoData.video_duration = parseInt(additionalData.videoDuration);
+      }
     }
+
+    const { data: video, error } = await supabaseAdmin
+      .from('videos')
+      .insert(videoData)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return video;
   }
 
   /**
@@ -194,12 +221,12 @@ class MediaStorageService {
    */
   async uploadImage(file, userId, routeId) {
     const userLogin = await this.getUserLogin(userId);
-    
+
     if (!routeId) throw new Error('routeId обязателен для загрузки изображения');
 
     const fileExt = path.extname(file.originalname);
     const uniqueId = crypto.randomUUID();
-    
+
     // Формируем имя файла: route_id/user_login/uuid.ext
     const fileName = `${routeId}/${userLogin}/${uniqueId}${fileExt}`;
 
@@ -240,7 +267,7 @@ class MediaStorageService {
    */
   async deleteVideo(videoId, fileUrl) {
     if (!fileUrl) throw new Error('Неверный URL файла');
-    
+
     const parts = fileUrl.split('/videos/');
     if (parts.length < 2) throw new Error('Неверный формат URL видео');
     const fileName = parts[1];
@@ -260,7 +287,7 @@ class MediaStorageService {
    */
   async deleteImage(imageId, fileUrl) {
     if (!fileUrl) throw new Error('Неверный URL файла');
-    
+
     const parts = fileUrl.split('/Images/');
     if (parts.length < 2) throw new Error('Неверный формат URL изображения');
     const fileName = parts[1];

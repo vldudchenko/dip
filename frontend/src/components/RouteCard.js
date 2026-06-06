@@ -10,13 +10,13 @@ import '../styles/routeCard.css';
  */
 export const RouteCard = ({ route, guide }) => {
   const [images, setImages] = useState([]);
-  const [activeSessionsCount, setActiveSessionsCount] = useState(0);
+  const activeSessionsCount = route.active_sessions_count || 0;
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCardData = async () => {
+    const fetchCardImages = async () => {
       try {
         // Загружаем изображения
         const imagesResp = await fetch(`${API_URL}/images/route/${route.id}`);
@@ -24,24 +24,14 @@ export const RouteCard = ({ route, guide }) => {
           const imagesData = await imagesResp.json();
           setImages(imagesData);
         }
-
-        // Загружаем сессии для подсчета "ожидают набора"
-        const sessionsResp = await fetch(`${API_URL}/sessions/route/${route.id}`);
-        if (sessionsResp.ok) {
-          const sessionsData = await sessionsResp.json();
-          const active = sessionsData.filter(s =>
-            s.status === 'waiting' || s.status === 'pending_date'
-          ).length;
-          setActiveSessionsCount(active);
-        }
       } catch (err) {
-        console.error(`Error fetching data for route ${route.id}:`, err);
+        console.error(`Error fetching images for route ${route.id}:`, err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCardData();
+    fetchCardImages();
   }, [route.id]);
 
   const handlePrevImage = (e) => {
@@ -72,9 +62,11 @@ export const RouteCard = ({ route, guide }) => {
         {images.length > 0 ? (
           <>
             <img
-              src={images[activeImageIndex].file_url}
+              src={`${images[activeImageIndex].file_url}?width=600&quality=80`}
               alt={route.title}
               className="card-image"
+              loading="lazy"
+              decoding="async"
             />
             {images.length > 1 && isHovered && (
               <>

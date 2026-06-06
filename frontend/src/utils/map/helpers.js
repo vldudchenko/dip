@@ -110,8 +110,8 @@ export function toLngLatRoute(routeGeometry) {
 export function createAvatarElement(avatarUrl, login, isHighlighted = false, opacity = 1) {
   const element = document.createElement('div');
   element.className = 'VideoMarker';
-  element.style.width = '50px';
-  element.style.height = '50px';
+  element.style.width = '35px';
+  element.style.height = '35px';
   element.style.borderRadius = '50%';
   element.style.background = 'rgba(255, 255, 255, 0.4)';
   element.style.backdropFilter = 'blur(10px)';

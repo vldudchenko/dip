@@ -6,20 +6,6 @@
   position: relative;
 }
 
-.map-page-header {
-  padding: 1rem 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border-radius: 16px;
-  margin: 0rem 1rem 1rem 1rem;
-  min-height: 80px;
-}
-
 .header-info h1 {
   margin: 0;
   font-size: 1.25rem;
@@ -37,10 +23,10 @@
 
 .map-page-main {
   display: flex;
-  height: 1000px;
   overflow: hidden;
   gap: 1rem;
   margin: 0 1rem 1rem 1rem;
+  height: 1138px;
 }
 
 .map-container-wrapper {
@@ -62,7 +48,6 @@
 }
 
 .map-sidebar {
-  height: 1000px;
   width: 350px;
   min-width: 350px;
   background: rgba(255, 255, 255, 0.9);
@@ -90,7 +75,6 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
 }
 
 .filter-section {
@@ -105,7 +89,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  transition: margin-bottom 0.2s ease;
+}
+
+.filter-section-title--active {
+  margin-bottom: 10px;
 }
 
 .filter-section-title span {
@@ -127,12 +115,102 @@
   gap: 0.5rem;
 }
 
-.filter-group label {
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-group label,
+.filter-header span:first-child {
   font-size: 0.75rem;
   font-weight: 700;
   color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.filter-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+/* Уникальные имена для избежания конфликтов */
+.vlad-range-track {
+  position: absolute;
+  top: 50% !important;
+  left: 0;
+  right: 0;
+  height: 4px !important;
+  background: #e5e7eb !important;
+  border-radius: 2px !important;
+  z-index: 1;
+}
+
+.vlad-range-active {
+  position: absolute;
+  top: 50% !important;
+  height: 4px !important;
+  background: #7c3aed !important;
+  z-index: 2;
+}
+
+/* Общий стиль для инпутов */
+.filter-range {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+  z-index: 3;
+}
+
+.filter-range::-webkit-slider-runnable-track {
+  background: transparent !important;
+  border: none !important;
+  height: 24px;
+}
+
+.filter-range::-moz-range-track {
+  background: transparent !important;
+  border: none !important;
+  height: 24px;
+}
+
+.filter-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: auto;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  /* (24 - 18) / 2 */
+  border-radius: 50%;
+  border: 3px solid #7c3aed;
+  background: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 5;
+}
+
+.filter-range::-moz-range-thumb {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid #7c3aed;
+  background: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
 }
 
 .filter-input {
@@ -335,7 +413,7 @@ input:checked+.slider:before {
   gap: 0.5rem;
   overflow-y: auto;
   padding-right: 4px;
-  min-height: 320px;
+  min-height: 390px;
 }
 
 .route-list-item {
@@ -378,15 +456,74 @@ input:checked+.slider:before {
   max-width: 180px;
 }
 
-.route-item-dist {
-  font-size: 0.7rem;
-  color: #9ca3af;
+.route-item-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.route-item-dist,
+.route-item-dur {
+  font-size: 0.75rem;
+  color: #6b7280;
   font-weight: 500;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+}
+
+.route-list-item:has(input:checked) .route-item-dist,
+.route-list-item:has(input:checked) .route-item-dur {
+  color: #7c3aed;
+}
+
+.filter-group.duration-filter .filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.filter-group.duration-filter .filter-value {
+  text-align: right;
+  max-width: 180px;
 }
 
 .route-list-item:has(input:checked) {
   border-color: #7c3aed;
   background: #f5f3ff;
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1.5px solid #f3f4f6;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.radio-item:hover {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.radio-item input {
+  display: none;
+}
+
+.radio-item:has(input:checked) {
+  border-color: #7c3aed;
+  background: #f5f3ff;
+  color: #7c3aed;
 }
 
 .no-routes {

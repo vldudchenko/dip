@@ -1,20 +1,43 @@
 import express from 'express';
-import { upload } from '../middleware/upload.js';
 import { mediaStorageService } from '../services/mediaStorage.js';
 import { videoService } from '../services/video.js';
-import { requireAuth } from '../middleware/errorHandler.js';
+import { requireAuth, optionalAuth } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
 /**
- * POST /videos - Загрузка нового видео
+ * POST /videos/upload-url - Получение Signed URL для прямой загрузки видео
  */
-router.post('/', upload.single('video'), async (req, res) => {
+router.post('/upload-url', requireAuth, async (req, res) => {
   try {
-    const { userId, routeId, latitude, longitude, isLive, routeStart, routeEnd, routeGeometry, videoDuration } = req.body;
+    const { fileName } = req.body;
+    if (!fileName) {
+      return res.status(400).json({ error: 'Не указано имя файла' });
+    }
 
-    if (!req.file) {
-      return res.status(400).json({ error: 'Файл не загружен' });
+    // Генерируем Signed URL для загрузки в бакет 'raw-videos'
+    const { data, error } = await mediaStorageService.generateSignedUploadUrl('raw-videos', fileName);
+    
+    if (error) {
+      throw error;
+    }
+
+    res.json({ success: true, ...data });
+  } catch (error) {
+    console.error('Signed URL error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /videos - Подтверждение загрузки видео и запуск обработки
+ */
+router.post('/', requireAuth, async (req, res) => {
+  try {
+    const { userId, routeId, latitude, longitude, isLive, routeStart, routeEnd, routeGeometry, videoDuration, filePath, originalName } = req.body;
+
+    if (!filePath) {
+      return res.status(400).json({ error: 'Не указан путь к файлу' });
     }
 
     const additionalData = {
@@ -26,17 +49,41 @@ router.post('/', upload.single('video'), async (req, res) => {
       videoDuration: videoDuration ? parseInt(videoDuration) : null,
     };
 
-    const video = await mediaStorageService.uploadVideo(
-      req.file,
+    // Создаем запись в БД со статусом 'processing'
+    const video = await mediaStorageService.registerVideo(
       userId,
       latitude,
       longitude,
+      originalName,
+      filePath,
       additionalData
     );
 
+    // Запускаем фоновую обработку асинхронно
+    // Импортируем динамически, чтобы избежать циклических зависимостей
+    import('../services/videoProcessor.js').then(({ videoProcessorService }) => {
+      videoProcessorService.processVideo(video.id, filePath).catch(err => {
+        console.error(`Ошибка фоновой обработки видео ${video.id}:`, err);
+      });
+    });
+
     res.json({ success: true, video });
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Upload confirm error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /videos/clusters - Получение кластеров
+ */
+router.post('/clusters', async (req, res) => {
+  try {
+    const { bounds, zoom } = req.body;
+    const clusters = await videoService.getClusters({ bounds, zoom });
+    res.json(clusters);
+  } catch (error) {
+    console.error('Fetch clusters error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -84,9 +131,10 @@ router.get('/:id/stats', async (req, res) => {
 });
 
 /**
- * POST /videos/:id/view - Добавление просмотра
+ * POST /videos/:id/view - Добавление просмотра (мягкая авторизация)
+ * userId берётся из JWT-куки (если есть) или из тела запроса
  */
-router.post('/:id/view', requireAuth, async (req, res) => {
+router.post('/:id/view', optionalAuth, async (req, res) => {
   try {
     const { userId } = req.body;
     const result = await videoService.addView(req.params.id, userId);
@@ -98,11 +146,11 @@ router.post('/:id/view', requireAuth, async (req, res) => {
 });
 
 /**
- * POST /videos/:id/like - Лайк/дизлайк видео
+ * POST /videos/:id/like - Лайк/дизлайк видео (требует авторизацию)
  */
 router.post('/:id/like', requireAuth, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId } = req.body; // userId гарантированно из токена (requireAuth)
     const result = await videoService.toggleLike(req.params.id, userId);
     res.json(result);
   } catch (error) {
@@ -116,7 +164,20 @@ router.post('/:id/like', requireAuth, async (req, res) => {
  */
 router.get('/:id/like', async (req, res) => {
   try {
-    const { userId } = req.query;
+    // Пытаемся получить userId из токена или из запроса
+    let userId = req.query.userId;
+    
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const { verifyToken } = await import('../middleware/errorHandler.js');
+        const decoded = await verifyToken(token);
+        userId = decoded.id;
+      } catch (e) {
+        // Игнорируем ошибки токена для этого эндпоинта
+      }
+    }
 
     if (!userId) {
       return res.json({ liked: false });

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { API_URL } from '../utils/constants';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -16,7 +17,6 @@ export function useAuth() {
       const data = await api.fetchUser(userId);
       if (data) {
         setUser(data);
-        localStorage.setItem('yandex_token', data.access_token);
         localStorage.setItem('user_id', data.id);
       }
       return data;
@@ -31,37 +31,56 @@ export function useAuth() {
   // Проверка авторизации и обработка callback
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
     const userId = params.get('user_id');
 
-    if (token && userId) {
-      // Сохраняем данные и запрашиваем профиль
-      localStorage.setItem('yandex_token', token);
+    if (userId) {
+      // После редиректа с бэкенда: сохраняем userId и загружаем профиль
       localStorage.setItem('user_id', userId);
       fetchUser(userId);
-      // Очищаем параметры из URL через navigate, чтобы роутер узнал об изменениях
       navigate('/', { replace: true });
     } else {
-      // Если параметров нет, проверяем localStorage
+      // Пробуем восстановить сессию из JWT-куки через /auth/me
       const storedUserId = localStorage.getItem('user_id');
-      if (storedUserId && storedUserId !== 'undefined') {
-        fetchUser(storedUserId);
-      } else {
-        if (storedUserId === 'undefined') {
-          localStorage.removeItem('user_id');
-          localStorage.removeItem('yandex_token');
-        }
-        setLoading(false);
-      }
+
+      fetch(`${API_URL}/auth/me`, { credentials: 'include' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.userId) {
+            // Кука валидна — загружаем профиль
+            fetchUser(data.userId);
+          } else if (storedUserId && storedUserId !== 'undefined') {
+            // Кука протухла, но есть сохранённый userId — пробуем загрузить профиль
+            fetchUser(storedUserId).catch(() => {
+              localStorage.removeItem('user_id');
+              setLoading(false);
+            });
+          } else {
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          // Сеть недоступна — пробуем localStorage
+          if (storedUserId && storedUserId !== 'undefined') {
+            fetchUser(storedUserId);
+          } else {
+            setLoading(false);
+          }
+        });
     }
   }, [fetchUser, navigate]);
 
   const login = useCallback(() => {
-    window.location.href = `${process.env.REACT_APP_API_URL}/auth/yandex`;
+    window.location.href = `${API_URL}/auth/yandex`;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('yandex_token');
+  const logout = useCallback(async () => {
+    try {
+      // Очищаем JWT-куку на бэкенде
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (_) {}
     localStorage.removeItem('user_id');
     setUser(null);
   }, []);

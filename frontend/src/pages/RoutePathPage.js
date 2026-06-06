@@ -10,7 +10,7 @@ import ConfirmModal from '../components/ConfirmModal';
 
 import '../styles/routePathPage.css';
 
-import { MapPageSkeleton } from '../components/Skeletons/MapPageSkeleton';
+import { RoutePathSkeleton } from '../components/Skeletons/MapPageSkeleton';
 
 export const RoutePathPage = () => {
   const { id } = useParams();
@@ -19,7 +19,7 @@ export const RoutePathPage = () => {
   const storedUserId = localStorage.getItem('user_id');
   const currentUserId = storedUserId && storedUserId !== 'undefined' ? storedUserId : null;
   const { provider } = useMapProvider();
-  const { ymapsReady, loadError } = useYandexMaps(provider === 'yandex');
+  const { ymapsReady, loadError } = useYandexMaps(true); // Загружаем в фоне всегда
 
   const [route, setRoute] = useState(null);
   const [points, setPoints] = useState([]);
@@ -263,8 +263,14 @@ export const RoutePathPage = () => {
     try {
       const response = await fetch(`${API_URL}/routes/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path_data: points })
+        headers: { 
+          'Content-Type': 'application/json',
+          'user-id': currentUserId
+        },
+        body: JSON.stringify({ 
+          path_data: points,
+          userId: currentUserId 
+        })
       });
 
       if (!response.ok) {
@@ -283,8 +289,10 @@ export const RoutePathPage = () => {
 
 
 
-  if (loading) return <MapPageSkeleton isRoutePath={true} />;
-  if (error) return <div className="route-path-page"><p>Ошибка: {error}</p></div>;
+  if (loading || authLoading) {
+    return <RoutePathSkeleton />;
+  }
+if (error) return <div className="route-path-page"><p>Ошибка: {error}</p></div>;
   if (!route) return <div className="route-path-page"><p>Маршрут не найден</p></div>;
 
   return (

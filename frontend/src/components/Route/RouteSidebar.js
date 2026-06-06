@@ -13,7 +13,10 @@ const RouteSidebar = memo(({
   realIsGuide, 
   isPreviewMode, 
   onTogglePreview, 
-  onDeleteRoute 
+  onDeleteRoute,
+  onSave,
+  onCancel,
+  saving
 }) => {
   const [avatarError, setAvatarError] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -65,13 +68,33 @@ const RouteSidebar = memo(({
                 </button>
 
                 {!isPreviewMode && (
-                  <button 
-                    className="btn btn--secondary btn--small"
-                    onClick={() => setShowDeleteModal(true)}
-                    style={{ width: '100%', color: '#ef4444' }}
-                  >
-                    Удалить маршрут
-                  </button>
+                  <>
+                    <button 
+                      className="btn btn--secondary btn--small"
+                      onClick={() => setShowDeleteModal(true)}
+                      style={{ width: '100%', color: '#ef4444' }}
+                    >
+                      Удалить маршрут
+                    </button>
+
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <button 
+                        className="btn btn--primary btn--small"
+                        onClick={onSave}
+                        disabled={saving}
+                        style={{ width: '100%' }}
+                      >
+                        {saving ? 'Сохранение...' : 'Сохранить маршрут'}
+                      </button>
+                      <button 
+                        className="btn btn--secondary btn--small"
+                        onClick={onCancel}
+                        style={{ width: '100%' }}
+                      >
+                        Отменить
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             )}

@@ -5,7 +5,7 @@ import customization from '../../customization.json';
  * Инициализирует карту Яндекс с базовой функциональностью
  */
 export async function initMap({
-  containerId,
+  container,
   center,
   zoom,
   userRef,
@@ -27,7 +27,6 @@ export async function initMap({
   } = window.ymaps3;
 
   const mapState = loadMapState(center, zoom);
-  const container = document.getElementById(containerId);
   if (!container) return null;
 
   container.innerHTML = '';

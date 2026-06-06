@@ -46,7 +46,7 @@ const RouteGallery = memo(({ images, videos, isGuide, onUpload, onDelete, loadin
   return (
     <div className="route-detail-gallery" style={{ marginBottom: isGuide ? '0' : '20px' }}>
       <div
-        style={{ width: '100%', height: '500px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', backgroundColor: '#000', borderRadius: '12px' }}
+        style={{ width: '100%', height: '500px', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', borderRadius: '12px' }}
         onMouseEnter={() => setIsMediaHovered(true)}
         onMouseLeave={() => setIsMediaHovered(false)}
       >

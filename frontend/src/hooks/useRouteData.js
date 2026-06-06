@@ -61,7 +61,19 @@ export const useRouteData = (routeId, currentUserId) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUserId })
-          }).catch(e => console.error('Stats view error:', e));
+          })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data && data.viewed) {
+                // Мгновенно увеличиваем счетчик в интерфейсе, если просмотр уникальный/новый
+                setRouteStats(prev => ({
+                  ...prev,
+                  views: (prev.views || 0) + 1,
+                  viewCount: (prev.viewCount || 0) + 1
+                }));
+              }
+            })
+            .catch(e => console.error('Stats view error:', e));
         }
 
         await fetchMedia();
@@ -112,27 +124,54 @@ export const useRouteData = (routeId, currentUserId) => {
 
   const uploadMedia = useCallback(async (file) => {
     if (routeId === 'new') return;
-    const formData = new FormData();
     const isImage = file.type.startsWith('image/');
     const type = isImage ? 'images' : 'videos';
-    const field = isImage ? 'image' : 'video';
-    
-    formData.append(field, file);
-    formData.append('userId', currentUserId);
-    formData.append('routeId', routeId);
+    const ext = file.name.split('.').pop();
+    const uniqueName = `${currentUserId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
     setMediaLoading(true);
     try {
-      const response = await fetch(`${API_URL}/${type}`, {
+      // 1. Получаем Signed URL от нашего бэкенда
+      const urlRes = await fetch(`${API_URL}/${type}/upload-url`, {
         method: 'POST',
-        headers: {
-          'user-id': currentUserId
-        },
-        body: formData
+        headers: { 'Content-Type': 'application/json', 'user-id': currentUserId },
+        body: JSON.stringify({ fileName: uniqueName })
+      });
+      const urlData = await urlRes.json();
+      
+      if (!urlData.success || !urlData.signedUrl) {
+        throw new Error(`Не удалось получить Signed URL для ${isImage ? 'изображения' : 'видео'}`);
+      }
+
+      // 2. Прямая загрузка файла в Supabase (Storage)
+      const uploadRes = await fetch(urlData.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file
       });
 
-      if (!response.ok) throw new Error(`Не удалось загрузить ${isImage ? 'изображение' : 'видео'}`);
+      if (!uploadRes.ok) throw new Error('Ошибка при загрузке файла в хранилище');
+
+      // 3. Подтверждаем загрузку на бэкенде
+      const confirmData = {
+        userId: currentUserId,
+        routeId: routeId,
+        filePath: urlData.path,
+        originalName: file.name
+      };
+
+      const res = await fetch(`${API_URL}/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'user-id': currentUserId },
+        body: JSON.stringify(confirmData)
+      });
+
+      if (!res.ok) throw new Error(`Не удалось сохранить ${isImage ? 'изображение' : 'видео'} в базе`);
+
       await fetchMedia();
+    } catch (error) {
+      console.error('Upload media error:', error);
+      throw error;
     } finally {
       setMediaLoading(false);
     }
